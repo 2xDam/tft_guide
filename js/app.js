@@ -22,7 +22,7 @@ const item = (id) => db.items[id] || { name: id, icon: null, recipe: [] };
 const isReal = (id) => !unit(id).summon;
 
 function defaultGame() {
-  return { stage: 2, round: 1, level: 4, gold: 10, hp: 100, streak: 'none', owned: {} };
+  return { stage: 2, round: 1, level: 4, gold: 10, hp: 100, streak: 'none', owned: {}, items: {} };
 }
 function loadGame() {
   try {
@@ -183,12 +183,13 @@ function boardOptions(comp) {
 }
 
 // Item mit Rezept als kompakte Kachel: großes Icon, daneben die beiden Komponenten
-function recipeChip(id) {
+function recipeChip(id, key) {
   const it = item(id);
+  const have = !!game.items[key];
   const parts = it.recipe.length
     ? it.recipe.map((c) => img(item(c).icon, item(c).name)).join('')
     : '<em>–</em>';
-  return `<button class="rc${ui.itemInfo === id ? ' on' : ''}" data-item="${esc(id)}" title="${esc(it.name)}">
+  return `<button class="rc${have ? ' have' : ''}" data-item="${esc(id)}" data-key="${esc(key)}" aria-pressed="${have}" title="${esc(it.name)}${have ? ' – habe ich' : ''}">
     ${img(it.icon, it.name, 'rc-item')}<span class="rc-parts">${parts}</span></button>`;
 }
 
@@ -201,7 +202,7 @@ function renderBuilds(comp) {
     return `<div class="build">
       ${unitChip(u)}
       <span class="build-name"><b>${esc(un.name)}</b><small>${idx === 0 ? 'Haupt-Carry' : comp.unitStats[u]?.items3 > 0.5 ? 'Item-Träger' : 'Zweite Wahl'}</small></span>
-      <span class="build-items">${comp.builds[u][0].items.map(recipeChip).join('')}</span>
+      <span class="build-items">${comp.builds[u][0].items.map((i, n) => recipeChip(i, `${u}:${n}`)).join('')}</span>
     </div>`;
   }).join('');
   const alts = cs.filter((u) => comp.builds[u].length > 1).map((u) => `<div class="alt">
@@ -209,11 +210,29 @@ function renderBuilds(comp) {
     </div>`).join('');
   const info = ui.itemInfo && item(ui.itemInfo);
 
-  return `<div class="builds-head"><h3>Items <small>Item = Komponente + Komponente</small></h3></div>
+  // Was noch fehlt: Komponenten aller nicht abgehakten Items
+  const need = new Map();
+  let total = 0;
+  let open = 0;
+  for (const u of cs) {
+    comp.builds[u][0].items.forEach((id, n) => {
+      total++;
+      if (game.items[`${u}:${n}`]) return;
+      open++;
+      const parts = item(id).recipe.length ? item(id).recipe : [id];
+      for (const c of parts) need.set(c, (need.get(c) || 0) + 1);
+    });
+  }
+  const rank = new Map(prio.map((p, i) => [p.id, i]));
+  const missing = [...need.entries()].sort((a, b) => b[1] - a[1] || (rank.get(a[0]) ?? 99) - (rank.get(b[0]) ?? 99));
+
+  return `<div class="builds-head"><h3>Items <small>antippen = habe ich</small></h3><span class="badge">${total - open} / ${total} fertig</span></div>
+    <div class="missing"><span class="lbl">Fehlt noch</span>${missing.length
+      ? missing.map(([id, n], i) => `<span class="cp${i < 3 ? ' top' : ''}" title="${esc(item(id).name)}">${img(item(id).icon, item(id).name)}<b>${n}×</b></span>`).join('')
+      : '<span class="all-done">Alle Items gebaut ✓</span>'}</div>
     ${emblem ? `<p class="callout">Braucht <b>${esc(item(emblem.item).name)}</b> auf ${esc(unit(emblem.unit).name)}${emblem.recipe.length ? '' : ' – nur über Augments oder Beute'}.</p>` : ''}
     <div class="builds">${rows || '<p class="empty">Keine Build-Daten.</p>'}</div>
     ${info ? `<p class="item-info"><b>${esc(info.name)}</b>${info.recipe.length ? ` = ${info.recipe.map((c) => esc(item(c).name)).join(' + ')}` : ' – nicht baubar'}</p>` : ''}
-    <div class="comp-prio"><span class="lbl">Komponenten</span>${prio.map((p, i) => `<span class="cp${i < 3 ? ' top' : ''}" title="${esc(item(p.id).name)}">${img(item(p.id).icon, item(p.id).name)}<b>${p.need}×</b></span>`).join('')}</div>
     ${alts ? `<details class="alts"><summary>Alternative Builds</summary>${alts}</details>` : ''}`;
 }
 
@@ -403,7 +422,10 @@ function bindGuide(comp) {
       ui.boardTab = d.tab;
       ui.variant = 0;
     } else if (d.variant) ui.variant = Number(d.variant);
-    else if (d.item) ui.itemInfo = ui.itemInfo === d.item ? null : d.item;
+    else if (d.item) {
+      game.items[d.key] ? delete game.items[d.key] : (game.items[d.key] = true);
+      ui.itemInfo = d.item;
+    }
     else if (d.own) game.owned[d.own] ? delete game.owned[d.own] : (game.owned[d.own] = true);
     else if ('reset' in d) {
       game = { ...defaultGame(), compId: comp.id };
