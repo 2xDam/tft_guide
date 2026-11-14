@@ -1,7 +1,8 @@
 // Seite „Meine Spiele“: letzte Partien aus data/matches.json, ausgewertet gegen die Meta-Daten.
 // Grundlage ist nur der Endstand jeder Partie – Entscheidungen pro Runde liefert Riot nicht.
 
-import { carries, rollLevel, isReroll, threeStarTargets, emblemNeed, styleLabel } from './tips.js';
+import { carries, rollLevel, isReroll, threeStarTargets, emblemNeed, styleLabel, ROUNDS } from './tips.js';
+import { loadHistory, removeHistory, analyzeLog, chartSvg } from './history.js';
 
 const QUEUES = { 1100: 'Ranked', 1090: 'Normal', 1130: 'Hyper Roll', 1160: 'Double Up', 1150: 'Double Up' };
 const ANALYZED = new Set([1090, 1100]);
@@ -194,8 +195,10 @@ export function renderGames(app, ctx, sel) {
   const { db, esc } = ctx;
   const all = ctx.matches;
   const raw = (all.players || []).filter((p) => p.matches?.length);
-  if (!raw.length) {
-    app.innerHTML = setupHtml(all, esc);
+  const logs = loadHistory();
+  app.onclick = null;
+  if (sel === 'log' || !raw.length) {
+    renderLogs(app, ctx, raw, logs);
     return;
   }
   const unitKey = lookup(Object.keys(db.units));
@@ -205,10 +208,7 @@ export function renderGames(app, ctx, sel) {
   const one = idx >= 0 ? players[idx] : null;
   const date = (t) => new Date(t).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
 
-  const filter = players.length > 1 ? `<div class="filters"><div class="seg scroll">
-      <a class="segl${idx < 0 ? ' on' : ''}" href="#/spiele/alle">Alle</a>
-      ${players.map((p, i) => `<a class="segl${i === idx ? ' on' : ''}" href="#/spiele/${i}">${esc(shortName(p.riotId))}</a>`).join('')}
-    </div></div>` : '';
+  const filter = tabsHtml(players.map((p) => p.riotId), idx, logs.length, esc);
 
   let body;
   if (one) {
@@ -247,6 +247,87 @@ export function renderGames(app, ctx, sel) {
     ${body}`;
 }
 
+// Reiter: Alle | Spieler … | Mitschriften
+function tabsHtml(riotIds, idx, nLogs, esc) {
+  return `<div class="filters"><div class="seg scroll">
+      ${riotIds.length > 1 ? `<a class="segl${idx === -1 ? ' on' : ''}" href="#/spiele/alle">Alle</a>` : ''}
+      ${riotIds.map((id, i) => `<a class="segl${i === idx ? ' on' : ''}" href="#/spiele/${i}">${esc(shortName(id))}</a>`).join('')}
+      <a class="segl${idx === 'log' ? ' on' : ''}" href="#/spiele/log">Mitschriften${nLogs ? ` (${nLogs})` : ''}</a>
+    </div></div>`;
+}
+
+const LOG_WEAK = {
+  'level-late': 'Level-Ups zu spät',
+  'level-never': 'geplantes Level nicht erreicht',
+  'econ-low': 'kaum Gold aufgebaut',
+  'gold-hp': 'bei wenig Leben auf Gold gesessen',
+  hp: 'früh viel Leben verloren',
+};
+
+// Eigene Mitschriften aus dem Modus „Runde für Runde“
+function renderLogs(app, ctx, riotPlayers, logs) {
+  const { esc } = ctx;
+  const all = ctx.matches;
+  const rows = logs.map((e) => ({ e, findings: analyzeLog(e) }));
+  const placed = logs.filter((e) => e.placement);
+  const avg = placed.length ? placed.reduce((a, e) => a + e.placement, 0) / placed.length : null;
+  const issues = new Map();
+  for (const r of rows) {
+    const seen = new Set();
+    for (const f of r.findings) if (f.kind === 'bad' && LOG_WEAK[f.key] && !seen.has(f.key)) {
+      seen.add(f.key);
+      issues.set(f.key, (issues.get(f.key) || 0) + 1);
+    }
+  }
+  const top = [...issues.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+  const icon = { good: '✓', bad: '✗', info: 'i' };
+  const date = (t) => new Date(t).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+  app.innerHTML = `
+    <section class="picker-head">
+      <h1>Spiele &amp; Analyse</h1>
+      <p class="sub">Mitschriften: deine im Modus „Runde für Runde“ gespeicherten Spiele – nur auf diesem Gerät.</p>
+      ${tabsHtml(riotPlayers.map((p) => p.riotId), 'log', logs.length, esc)}
+    </section>
+    ${logs.length ? `<section class="card games-sum">
+        <dl class="plan-sum">
+          <div><dt>Spiele</dt><dd>${logs.length}</dd></div>
+          <div><dt>Ø Platz</dt><dd>${avg == null ? '–' : fmt(avg)}</dd></div>
+          <div><dt>Top 4</dt><dd>${placed.length ? `${Math.round((placed.filter((e) => e.placement <= 4).length / placed.length) * 100)} %` : '–'}</dd></div>
+          <div><dt>Siege</dt><dd>${placed.filter((e) => e.placement === 1).length}</dd></div>
+        </dl>
+        ${top.length ? `<h3>Wiederkehrende Muster</h3><ul class="issues">${top.map(([k, n]) => `<li><b>${n}×</b> ${esc(LOG_WEAK[k])}</li>`).join('')}</ul>` : ''}
+      </section>
+      <section class="games">${rows.map(({ e, findings }) => {
+        const place = !e.placement ? '' : e.placement <= 4 ? (e.placement === 1 ? 'p1' : 'ptop') : 'pbot';
+        const last = e.log[e.log.length - 1];
+        return `<article class="card game">
+          <header>
+            <span class="place ${place}">${e.placement || '–'}</span>
+            <div class="game-title"><b>${esc(e.compName)}</b>
+              <small>${date(e.time)} · ${esc(e.style || '')} · ${e.log.length} Runden bis ${esc(ROUNDS[last?.i]?.key || '?')} · Items ${e.itemsDone}/${e.itemsTotal}</small></div>
+            <button class="ghost del" data-del="${e.id}" title="Mitschrift löschen">Löschen</button>
+          </header>
+          ${chartSvg(e)}
+          <p class="legend"><span><i class="dot hp"></i>Leben</span><span><i class="dot gold"></i>Gold</span><span><b class="lvl">7</b> Level-Up</span></p>
+          <ul class="findings">${findings.map((f) => `<li class="${f.kind}"><i>${icon[f.kind]}</i>${esc(f.text)}</li>`).join('')}</ul>
+        </article>`;
+      }).join('')}</section>`
+    : `<section class="card setup"><p>Noch keine Mitschrift. So entsteht eine:</p><ol>
+        <li>Team wählen und oben auf <b>Runde für Runde</b> stellen.</li>
+        <li>Während des Spiels Level, Gold und Leben aktuell halten und mit <b>Weiter</b> zur nächsten Runde gehen.</li>
+        <li>Am Ende <b>Spiel beenden &amp; speichern</b> antippen und die Platzierung wählen.</li>
+      </ol></section>`}
+    ${riotPlayers.length ? '' : `<details class="alts"><summary>Riot-Spiele automatisch abrufen (optional)</summary>${setupHtml(all, esc)}</details>`}`;
+
+  app.onclick = (ev) => {
+    const b = ev.target.closest('button[data-del]');
+    if (!b || !window.confirm('Diese Mitschrift löschen?')) return;
+    removeHistory(b.dataset.del);
+    renderLogs(app, ctx, riotPlayers, loadHistory());
+  };
+}
+
 function gameCard(g, ctx, date, showPlayer) {
   const { db, esc, img, compName } = ctx;
   const { m, comp, findings } = g;
@@ -275,9 +356,7 @@ function gameCard(g, ctx, date, showPlayer) {
 
 function setupHtml(all, esc) {
   const errs = (all.players || []).filter((p) => p.error);
-  return `<section class="picker-head"><h1>Spiele &amp; Analyse</h1>
-    <p class="sub">Noch keine Spiele vorhanden. So richtest du den Abruf ein:</p></section>
-    <section class="card setup"><ol>
+  return `<section class="card setup"><p>So richtest du den Abruf deiner Riot-Spiele ein:</p><ol>
       <li>Auf <a href="https://developer.riotgames.com" target="_blank" rel="noopener">developer.riotgames.com</a> anmelden und einen persönlichen API-Schlüssel beantragen („Register Product → Personal API Key“).</li>
       <li>Im GitHub-Repository unter <b>Settings → Secrets and variables → Actions</b> ein Secret namens <code>RIOT_API_KEY</code> mit dem Schlüssel anlegen.</li>
       <li>In <code>players.json</code> die Riot-IDs eintragen, z. B. <code>"players": ["Name#EUW"]</code>, und pushen.</li>

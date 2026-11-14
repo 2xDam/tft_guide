@@ -24,7 +24,7 @@ Danach http://localhost:4173 öffnen. Es gibt keinen Build-Schritt und keine Abh
 1. Repository auf GitHub anlegen und diesen Ordner auf den Branch `main` pushen.
 2. Im Repository unter **Settings → Pages → Source** „GitHub Actions“ wählen.
 
-Der Workflow `.github/workflows/deploy.yml` importiert bei jedem Push und einmal täglich
+Der Workflow `.github/workflows/deploy.yml` importiert bei jedem Push und alle sechs Stunden
 frische Daten und veröffentlicht die Seite auf GitHub Pages.
 
 ## Meine Spiele (optional)
@@ -41,6 +41,15 @@ Entscheidungen pro Runde liefert die Riot-API nicht.
 
 Der Workflow ruft die Spiele bei jedem Lauf ab. Die Daten in `data/matches.json` sind über die
 veröffentlichte Seite öffentlich einsehbar. Lokal: `RIOT_API_KEY=… npm run matches`.
+
+## Als App und Mitschriften
+
+- Die Seite lässt sich auf dem Handy zum Startbildschirm hinzufügen (Android: Browsermenü →
+  „App installieren“, iPhone: Teilen → „Zum Home-Bildschirm“). Ein Service Worker lädt eigene
+  Dateien bei jedem Start frisch und zeigt ohne Netz den zuletzt geladenen Stand.
+- Im Modus „Runde für Runde“ wird jede Runde mitgeschrieben. „Spiel beenden & speichern“ legt
+  den Verlauf auf dem Gerät ab; die Auswertung steht unter Spiele & Analyse → Mitschriften.
+- Favoriten, Freestyle-Auswahl und Mitschriften liegen nur im Browser des jeweiligen Geräts.
 
 ## Hinweise
 

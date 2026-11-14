@@ -44,7 +44,10 @@ function scoreComp(comp, db, mine, pool) {
     return true;
   };
   const wanted = [];
-  cs.slice(0, 3).forEach((u) => comp.builds[Object.keys(comp.builds).find((k) => norm(k) === u)]?.[0].items.forEach((i) => wanted.push({ unit: u, item: i })));
+  cs.slice(0, 3).forEach((u) => {
+    const key = Object.keys(comp.builds).find((k) => norm(k) === u);
+    comp.builds[key]?.[0].items.forEach((i, n) => wanted.push({ unit: u, item: i, key, n }));
+  });
   const built = [];
   const partial = [];
   let itemPts = 0;
@@ -86,6 +89,26 @@ function scoreComp(comp, db, mine, pool) {
 
   const missing = [...new Set([...cs, ...comp.units.map(norm)])].filter((u) => !mine.includes(u) && !db.units[u]?.summon).slice(0, 5);
   return { comp, total, unitFit, itemFit, hits, built, partial, missing, givenItems: given };
+}
+
+const poolOf = () => Object.fromEntries(Object.entries(st.items).filter(([, n]) => n > 0));
+export const freestyleActive = () => st.units.length > 0 || Object.keys(poolOf()).length > 0;
+export const freestyleCount = () => st.units.length;
+
+export function freestyleRank(data, db, n = 5) {
+  if (!freestyleActive()) return [];
+  const pool = poolOf();
+  return data.comps.map((c) => scoreComp(c, db, st.units, pool)).sort((a, b) => b.total - a.total).slice(0, n);
+}
+
+// Auswahl in den Guide übernehmen: vorhandene Einheiten und baubare Items abhaken
+export function freestyleHandover(comp, db) {
+  const r = scoreComp(comp, db, st.units, poolOf());
+  const owned = {};
+  for (const [id, u] of Object.entries(db.units)) if (st.units.includes(u.alias || id)) owned[id] = true;
+  const items = {};
+  for (const b of r.built) items[`${b.key}:${b.n}`] = true;
+  return { owned, items, score: r.total };
 }
 
 export function renderFreestyle(app, ctx) {
@@ -165,7 +188,7 @@ export function renderFreestyle(app, ctx) {
     return `<li class="fs-res${i === 0 ? ' best' : ''}">
       <header>
         <span class="tier tier-${t}">${t}</span>
-        <a href="#/comp/${c.id}">${esc(compName(c))}</a>
+        <a href="#/comp/${c.id}?fs">${esc(compName(c))}</a>
         <span class="fs-score">${Math.round(r.total * 100)} %</span>
       </header>
       <p class="fs-meta">${esc(styleLabel(c))} · Ø Platz ${c.avg.toFixed(2).replace('.', ',')}</p>
@@ -174,6 +197,7 @@ export function renderFreestyle(app, ctx) {
       ${r.givenItems ? `<div class="fs-line"><span class="lbl">Items</span>${items.length ? items.join('') : '<em>nichts davon passt in die Builds</em>'}</div>` : ''}
       <div class="fs-line"><span class="lbl">Fehlt</span>${r.missing.map((u) => unitIcon(u, true)).join('') || '<em>nichts Wichtiges</em>'}</div>
       ${emblem ? `<p class="hint">Braucht ${esc(db.items[emblem.item]?.name || 'ein Emblem')}.</p>` : ''}
+      <a class="fs-open" href="#/comp/${c.id}?fs">Guide öffnen – Einheiten und Items werden übernommen ›</a>
     </li>`;
   }
 

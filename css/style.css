@@ -45,7 +45,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, summary:focus-visibl
 
 .topbar {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 6px var(--pad);
+  padding: calc(6px + env(safe-area-inset-top)) var(--pad) 6px;
   border-bottom: 1px solid var(--line);
 }
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; text-decoration: none; color: var(--accent); }
@@ -153,6 +153,42 @@ main { max-width: 1180px; margin: 0 auto; padding: var(--gap) var(--pad); min-he
 .findings .info, .findings .good { color: #c8c8c8; }
 .setup ol { padding-left: 20px; display: grid; gap: 6px; }
 .setup code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
+
+/* Mitschriften */
+.game header .del { margin-left: auto; padding: 2px 8px; font-size: .72rem; }
+.log-chart { width: 100%; height: auto; display: block; background: var(--panel-2); border-radius: 6px; }
+.log-chart polyline { fill: none; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
+.log-chart .hp { stroke: var(--bad); } .log-chart .gold { stroke: var(--accent); }
+.log-chart .grid { stroke: var(--line); stroke-width: 1; }
+.log-chart .ax { fill: var(--muted); font-size: 7px; }
+.log-chart .up { fill: #6a6a6a; } .log-chart .upt { fill: #fff; font-size: 7px; font-weight: 700; text-anchor: middle; }
+.dot { display: inline-block; width: 10px; height: 3px; border-radius: 2px; }
+.dot.hp { background: var(--bad); } .dot.gold { background: var(--accent); }
+.game .legend { margin: 0; }
+.setup p { margin-bottom: 6px; }
+
+/* Rundensteuerung: Spiel beenden */
+.endgame { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 6px; margin-top: 6px; font-size: .78rem; }
+.endgame > span { color: var(--muted); }
+.endgame button[data-place] { width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel-2); font-weight: 700; }
+.endgame button[data-place]:hover { border-color: var(--accent); color: var(--accent); }
+.endgame .ghost { padding: 2px 8px; font-size: .74rem; }
+
+/* Ausweich-Comps */
+.alts-card .card-head + .hint { margin: -4px 0 6px; }
+.alts-card .alt-list + .card-head { margin-top: 12px; }
+.alt-list { list-style: none; padding: 0; display: grid; gap: 4px; }
+.alt-list li { padding: 6px 8px; border-radius: 8px; background: var(--panel-2); display: grid; gap: 4px; }
+.alt-list a { display: flex; align-items: center; gap: 8px; color: var(--text); text-decoration: none; min-width: 0; }
+.alt-list a b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.alt-list a:hover b { color: var(--accent); }
+.alt-list a em { font-style: normal; font-weight: 800; color: var(--accent); }
+.alt-list .tier { width: 20px; height: 20px; font-size: .72rem; }
+.alt-info { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.alt-units { display: inline-flex; gap: 2px; }
+.alt-units .unit { width: 24px; height: 24px; border-width: 1px; }
+.alt-info small { color: var(--muted); font-size: .72rem; }
+.fs-open { font-size: .78rem; text-decoration: none; }
 
 /* ---------- Freestyle ---------- */
 .fs-row { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 6px; align-items: start; margin-bottom: 6px; }
@@ -358,8 +394,8 @@ main { max-width: 1180px; margin: 0 auto; padding: var(--gap) var(--pad); min-he
   .guide-grid { grid-template-columns: minmax(0, 1fr); }
   .col { display: contents; }
   .control { order: 1; position: sticky; top: 0; z-index: 9; border-radius: 0 0 var(--radius) var(--radius); margin: 0 calc(var(--pad) * -1); border-width: 0 0 1px; box-shadow: 0 6px 14px rgba(0, 0, 0, .45); }
-  .tips { order: 2; } .board-card { order: 3; } .upcoming { order: 4; } .levels { order: 5; }
-  .overview .board-card { order: 1; } .plan { order: 2; }
+  .tips { order: 2; } .board-card { order: 3; } .alts-card { order: 4; } .upcoming { order: 5; } .levels { order: 6; }
+  .overview .board-card { order: 1; } .plan { order: 2; } .overview .alts-card { order: 3; }
   .topnav { margin-left: 2px; gap: 0; } .topnav a { padding: 3px 6px; font-size: .78rem; }
   .fs-unit { width: 40px; } .fs-unit img, .fs-unit .noimg { width: 30px; height: 30px; }
   .fs-unit span { max-width: 38px; }

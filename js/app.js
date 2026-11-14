@@ -4,7 +4,8 @@ import {
   buildTips, upcoming, gamePlan,
 } from './tips.js';
 import { loadMatches, renderGames } from './games.js';
-import { renderFreestyle } from './freestyle.js';
+import { renderFreestyle, freestyleActive, freestyleRank, freestyleHandover, freestyleCount } from './freestyle.js';
+import { addHistory } from './history.js';
 
 const app = document.getElementById('app');
 const STORE = 'tft-guide-state-v1';
@@ -48,7 +49,7 @@ const item = (id) => db.items[id] || { name: id, icon: null, recipe: [] };
 const isReal = (id) => !unit(id).summon;
 
 function defaultGame() {
-  return { stage: 2, round: 1, level: 4, gold: 10, hp: 100, streak: 'none', owned: {}, items: {} };
+  return { stage: 2, round: 1, level: 4, gold: 10, hp: 100, streak: 'none', owned: {}, items: {}, log: {} };
 }
 function loadGame() {
   try {
@@ -436,6 +437,11 @@ function renderControl(comp) {
       ${stepper('hp', 'Leben', 1, 100, 10)}
       <button class="streak ${game.streak}" data-streak title="Serie umschalten"><small>Serie</small><b>${STREAKS[game.streak]}</b></button>
     </div>
+    <div class="endgame">${ui.ending
+      ? `<span>Platzierung</span>${[1, 2, 3, 4, 5, 6, 7, 8].map((n) => `<button data-place="${n}">${n}</button>`).join('')}<button class="ghost" data-end="0">Abbrechen</button>`
+      : `<span class="hint">${ui.flash ? esc(ui.flash) : `${Object.keys(game.log || {}).length} Runden mitgeschrieben`}</span>
+         ${ui.flash ? '<a href="#/spiele/log">Mitschriften ansehen</a>' : '<button class="ghost" data-end="1">Spiel beenden &amp; speichern</button>'}`}
+    </div>
   </section>`;
 }
 
@@ -469,6 +475,55 @@ function renderPlan(comp) {
   </section>`;
 }
 
+// Comps mit vielen gemeinsamen Einheiten und Items – zum Wechseln, wenn es nicht läuft
+function similarComps(comp) {
+  const norm = (id) => unit(id).alias || id;
+  const mine = new Set(comp.units.map(norm));
+  const itemsOf = (c) => carries(c).slice(0, 3).flatMap((u) => c.builds[u][0].items);
+  const myItems = itemsOf(comp);
+  return data.comps
+    .filter((c) => c.id !== comp.id)
+    .map((c) => {
+      const shared = [...new Set(c.units.map(norm))].filter((u) => mine.has(u));
+      const pool = [...myItems];
+      let items = 0;
+      for (const i of itemsOf(c)) {
+        const at = pool.indexOf(i);
+        if (at >= 0) {
+          pool.splice(at, 1);
+          items++;
+        }
+      }
+      return { comp: c, shared, items, score: shared.length + items * 0.5 - Math.max(0, c.avg - 4.3) };
+    })
+    .filter((r) => r.shared.length >= 3)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3);
+}
+
+function renderAlternatives(comp) {
+  const sim = similarComps(comp);
+  const fs = game.fromFs && freestyleActive() ? freestyleRank(data, db, 6) : [];
+  const own = fs.find((r) => r.comp.id === comp.id);
+  const others = fs.filter((r) => r.comp.id !== comp.id).slice(0, 4);
+  if (!sim.length && !others.length) return '';
+  const row = (c, info, pctText, flag, icons) => `<li>
+      <a href="#/comp/${c.id}?${flag}"><span class="tier tier-${tier(c)}">${tier(c)}</span><b>${esc(compName(c))}</b>${pctText ? `<em>${pctText}</em>` : ''}</a>
+      <div class="alt-info"><span class="alt-units">${icons.slice(0, 7).map((u) => unitChip(u)).join('')}</span><small>${info}</small></div>
+    </li>`;
+  return `<section class="card alts-card">
+    ${others.length ? `<div class="card-head"><h2>Passt zu deiner Freestyle-Auswahl</h2><a class="hint" href="#/freestyle">Auswahl ändern</a></div>
+      ${own ? `<p class="hint">Diese Comp: ${Math.round(own.total * 100)} % Übereinstimmung.</p>` : ''}
+      <ul class="alt-list">${others.map((r) => row(r.comp,
+        `${r.hits.length} von ${freestyleCount()} Einheiten · ${r.built.length} Items baubar · ${esc(styleLabel(r.comp))} · Ø ${num(r.comp.avg)}`,
+        `${Math.round(r.total * 100)} %`, 'fs', r.hits.map((h) => h.id))).join('')}</ul>` : ''}
+    ${sim.length ? `<div class="card-head"><h2>Ausweich-Comps</h2><span class="hint">Spielstand bleibt erhalten</span></div>
+      <ul class="alt-list">${sim.map((r) => row(r.comp,
+        `${r.shared.length} gemeinsame Einheiten · ${r.items} gleiche Items · ${esc(styleLabel(r.comp))} · Ø ${num(r.comp.avg)}`,
+        '', 'sw', r.shared)).join('')}</ul>` : ''}
+  </section>`;
+}
+
 function renderGuide(comp) {
   const t = tier(comp);
   const ov = overview();
@@ -486,7 +541,7 @@ function renderGuide(comp) {
       <button class="ghost" data-reset>${ov ? 'Zurücksetzen' : 'Neues Spiel'}</button>
     </section>
     <div class="guide-grid${ov ? ' overview' : ''}">
-      <div class="col">${ov ? renderPlan(comp) : renderControl(comp) + renderTips(comp) + renderUpcoming(comp)}${renderLevels(comp)}</div>
+      <div class="col">${ov ? renderPlan(comp) : renderControl(comp) + renderTips(comp) + renderUpcoming(comp)}${renderLevels(comp)}${renderAlternatives(comp)}</div>
       <div class="col">${renderBoard(comp)}</div>
     </div>`;
   const tl = app.querySelector('.timeline');
@@ -512,7 +567,20 @@ function bindGuide(comp) {
       return;
     }
     if (d.fav) toggleFav(comp);
-    else if (d.round) {
+    else if (d.end) {
+      ui.ending = d.end === '1';
+      ui.flash = '';
+    } else if (d.place) {
+      saveMatchLog(comp, Number(d.place));
+      game = { ...defaultGame(), compId: comp.id };
+      ui.ending = false;
+      ui.flash = `Spiel gespeichert (Platz ${d.place}).`;
+      ui.boardTab = '';
+      saveGame();
+      renderGuide(comp);
+      return;
+    } else if (d.round) {
+      ui.flash = '';
       const i = Math.min(ROUNDS.length - 1, Math.max(0, roundIndex(game.stage, game.round) + Number(d.round)));
       game.stage = ROUNDS[i].s;
       game.round = ROUNDS[i].n;
@@ -569,7 +637,63 @@ function setField(key, value, input) {
   if (key === 'level' && before !== game[key]) ui.boardTab = '';
 }
 
+// Stand der aktuellen Runde festhalten (wird überschrieben, bis man weiterklickt)
+function logRound() {
+  if (overview()) return;
+  const i = roundIndex(game.stage, game.round);
+  game.log ||= {};
+  game.log[i] = { l: game.level, g: game.gold, h: game.hp, s: game.streak };
+}
+
+function saveMatchLog(comp, placement) {
+  logRound();
+  const done = Object.keys(game.items || {}).length;
+  addHistory({
+    id: Date.now(),
+    time: Date.now(),
+    compId: comp.id,
+    compName: compName(comp),
+    style: styleLabel(comp),
+    rollLvl: rollLevel(comp),
+    avg: comp.avg,
+    sched: schedule(comp).map((e) => ({ level: e.level, i: e.i })),
+    placement,
+    itemsDone: done,
+    itemsTotal: carries(comp).reduce((a, u) => a + comp.builds[u][0].items.length, 0),
+    log: Object.entries(game.log || {}).map(([i, r]) => ({ i: Number(i), ...r })).sort((a, b) => a.i - b.i),
+  });
+}
+
+// Beim Wechsel der Comp mitten im Spiel: Runde, Level, Gold, Leben und Einheiten behalten,
+// abgehakte Items anhand des Item-Namens auf die neue Comp übertragen.
+function switchComp(comp, useFreestyle) {
+  const old = data.comps.find((c) => c.id === game.compId);
+  const keep = old ? game : defaultGame();
+  const have = [];
+  if (old) for (const k of Object.keys(game.items || {})) {
+    const cut = k.lastIndexOf(':');
+    const id = old.builds[k.slice(0, cut)]?.[0].items[Number(k.slice(cut + 1))];
+    if (id) have.push(id);
+  }
+  const items = {};
+  for (const u of carries(comp)) comp.builds[u][0].items.forEach((id, n) => {
+    const at = have.indexOf(id);
+    if (at >= 0) {
+      have.splice(at, 1);
+      items[`${u}:${n}`] = true;
+    }
+  });
+  game = { ...defaultGame(), ...keep, compId: comp.id, items, owned: { ...(keep.owned || {}) } };
+  if (useFreestyle && freestyleActive()) {
+    const h = freestyleHandover(comp, db);
+    game.owned = { ...game.owned, ...h.owned };
+    game.items = { ...game.items, ...h.items };
+    game.fromFs = true;
+  }
+}
+
 function update(comp) {
+  logRound();
   saveGame();
   const y = window.scrollY;
   renderGuide(comp);
@@ -583,7 +707,7 @@ function route() {
     window.scrollTo(0, 0);
     return;
   }
-  const g = location.hash.match(/^#\/spiele(?:\/(\d+|alle))?/);
+  const g = location.hash.match(/^#\/spiele(?:\/(\d+|alle|log))?/);
   if (g) {
     app.onclick = null;
     app.onchange = null;
@@ -594,15 +718,30 @@ function route() {
     });
     return;
   }
-  const m = location.hash.match(/^#\/comp\/(\w+)/);
+  const m = location.hash.match(/^#\/comp\/(\w+)(?:\?(fs|sw))?/);
   const comp = m && data.comps.find((c) => c.id === m[1]);
   app.onclick = null;
   app.onchange = null;
   if (comp) {
-    if (game.compId !== comp.id) {
+    if (m[2] === 'sw' || (m[2] === 'fs' && game.fromFs)) {
+      // Wechsel aus dem Guide heraus: Spielstand behalten
+      switchComp(comp, m[2] === 'fs');
+      saveGame();
+    } else if (m[2] === 'fs') {
+      // Einstieg aus Freestyle: neues Spiel mit übernommener Auswahl
+      game = { ...defaultGame(), compId: comp.id, fromFs: true, ...(() => {
+        const h = freestyleHandover(comp, db);
+        return { owned: h.owned, items: h.items };
+      })() };
+      saveGame();
+    } else if (game.compId !== comp.id) {
       game = { ...defaultGame(), compId: comp.id };
       saveGame();
     }
+    // Kennzeichen aus der Adresse nehmen, damit ein Neuladen nichts erneut überschreibt
+    if (m[2]) history.replaceState(null, '', `#/comp/${comp.id}`);
+    ui.ending = false;
+    ui.flash = '';
     ui.boardTab = '';
     ui.variant = 0;
     ui.itemInfo = null;
@@ -632,3 +771,6 @@ async function init() {
 }
 
 init();
+
+// Handy-App: frische Dateien bei jedem Start, zuletzt geladener Stand ohne Netz
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
