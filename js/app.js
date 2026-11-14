@@ -116,11 +116,7 @@ function compCard(c) {
       </div>
     </div>
     <div class="unit-row">${[...c.units].sort(byCost).map((u) => unitChip(u, { items: main.has(u) ? c.builds[u][0].items : [] })).join('')}</div>
-    <dl class="stats">
-      <div><dt>Ø Platz</dt><dd>${num(c.avg)}</dd></div>
-      <div><dt>Top 4</dt><dd>${pct(c.top4)}</dd></div>
-      <div><dt>Sieg</dt><dd>${pct(c.win)}</dd></div>
-    </dl>
+    <span class="card-stats">Ø <b>${num(c.avg)}</b> · Top 4 <b>${pct(c.top4)}</b> · Sieg <b>${pct(c.win)}</b></span>
   </a>`;
 }
 
@@ -176,14 +172,49 @@ function boardOptions(comp) {
   const lvl = game.level;
   const early = comp.boards[lvl];
   const late = comp.finals[lvl];
-  if (early && lvl <= 7) tabs.push({ key: 'now', label: `Jetzt · Level ${lvl}`, level: lvl, options: early, early: true });
-  else if (late) tabs.push({ key: 'now', label: `Jetzt · Level ${lvl}`, level: lvl, options: late });
+  if (early && lvl <= 7) tabs.push({ key: 'now', label: `Jetzt · Lvl ${lvl}`, level: lvl, options: early, early: true });
+  else if (late) tabs.push({ key: 'now', label: `Jetzt · Lvl ${lvl}`, level: lvl, options: late });
   for (const l of Object.keys(comp.finals).map(Number).sort((a, b) => a - b)) {
     if (l === lvl && !(early && lvl <= 7)) continue;
-    tabs.push({ key: `f${l}`, label: `Ziel · Level ${l}`, level: l, options: comp.finals[l] });
+    tabs.push({ key: `f${l}`, label: `Lvl ${l}`, level: l, options: comp.finals[l] });
   }
   if (!tabs.length) tabs.push({ key: 'base', label: 'Zielboard', level: comp.units.length, options: [{ units: comp.units, traits: comp.traits }] });
   return tabs;
+}
+
+// Item mit Rezept als kompakte Kachel: großes Icon, daneben die beiden Komponenten
+function recipeChip(id) {
+  const it = item(id);
+  const parts = it.recipe.length
+    ? it.recipe.map((c) => img(item(c).icon, item(c).name)).join('')
+    : '<em>–</em>';
+  return `<button class="rc${ui.itemInfo === id ? ' on' : ''}" data-item="${esc(id)}" title="${esc(it.name)}">
+    ${img(it.icon, it.name, 'rc-item')}<span class="rc-parts">${parts}</span></button>`;
+}
+
+function renderBuilds(comp) {
+  const cs = carries(comp);
+  const prio = componentPriority(comp, db);
+  const emblem = emblemNeed(comp, db);
+  const rows = cs.map((u, idx) => {
+    const un = unit(u);
+    return `<div class="build">
+      ${unitChip(u)}
+      <span class="build-name"><b>${esc(un.name)}</b><small>${idx === 0 ? 'Haupt-Carry' : comp.unitStats[u]?.items3 > 0.5 ? 'Item-Träger' : 'Zweite Wahl'}</small></span>
+      <span class="build-items">${comp.builds[u][0].items.map(recipeChip).join('')}</span>
+    </div>`;
+  }).join('');
+  const alts = cs.filter((u) => comp.builds[u].length > 1).map((u) => `<div class="alt">
+      ${unitChip(u)}${comp.builds[u].slice(1).map((b) => `<span class="alt-build">${b.items.map((i) => img(item(i).icon, item(i).name)).join('')}<small>Ø ${num(b.avg)}</small></span>`).join('')}
+    </div>`).join('');
+  const info = ui.itemInfo && item(ui.itemInfo);
+
+  return `<div class="builds-head"><h3>Items <small>Item = Komponente + Komponente</small></h3></div>
+    ${emblem ? `<p class="callout">Braucht <b>${esc(item(emblem.item).name)}</b> auf ${esc(unit(emblem.unit).name)}${emblem.recipe.length ? '' : ' – nur über Augments oder Beute'}.</p>` : ''}
+    <div class="builds">${rows || '<p class="empty">Keine Build-Daten.</p>'}</div>
+    ${info ? `<p class="item-info"><b>${esc(info.name)}</b>${info.recipe.length ? ` = ${info.recipe.map((c) => esc(item(c).name)).join(' + ')}` : ' – nicht baubar'}</p>` : ''}
+    <div class="comp-prio"><span class="lbl">Komponenten</span>${prio.map((p, i) => `<span class="cp${i < 3 ? ' top' : ''}" title="${esc(item(p.id).name)}">${img(item(p.id).icon, item(p.id).name)}<b>${p.need}×</b></span>`).join('')}</div>
+    ${alts ? `<details class="alts"><summary>Alternative Builds</summary>${alts}</details>` : ''}`;
 }
 
 function renderBoard(comp) {
@@ -198,19 +229,18 @@ function renderBoard(comp) {
   const cells = layoutBoard(comp, opt.units);
   const stars = new Set(threeStarTargets(comp));
   const traits = activeTraits(opt.units.filter(isReal), opt.traits);
-  const realUnits = [...new Set(opt.units)].filter(isReal).sort(byCost);
 
   const rows = [0, 1, 2, 3].map((row) => `<div class="hex-row${row % 2 ? ' offset' : ''}">${
     cells.slice(row * 7, row * 7 + 7).map((u) => {
       if (!u) return '<div class="hex empty"></div>';
       const un = unit(u);
       const items = comp.builds[u]?.[0].items || [];
-      return `<div class="hex-wrap">
-        <div class="hex cost-${un.cost}" title="${esc(un.name)}">${img(un.icon, un.name)}</div>
+      return `<button class="hex-wrap${game.owned[u] ? ' own' : ''}" data-own="${esc(u)}" title="${esc(un.name)}">
+        <span class="hex cost-${un.cost}">${img(un.icon, un.name)}</span>
         ${stars.has(u) ? '<span class="stars">★★★</span>' : ''}
         ${items.length ? `<span class="hex-items">${items.map((i) => img(item(i).icon, item(i).name)).join('')}</span>` : ''}
         <span class="hex-name">${esc(un.name)}</span>
-      </div>`;
+      </button>`;
     }).join('')}</div>`).join('');
 
   return `<section class="card board-card">
@@ -218,62 +248,14 @@ function renderBoard(comp) {
       <h2>Aufstellung</h2>
       <div class="seg scroll">${tabs.map((t) => `<button data-tab="${t.key}" class="${t === tab ? 'on' : ''}">${esc(t.label)}</button>`).join('')}</div>
     </div>
-    ${tab.options.length > 1 ? `<div class="variants">${tab.options.map((o, i) =>
-      `<button data-variant="${i}" class="${o === opt ? 'on' : ''}">Variante ${i + 1}<small>Ø ${num(o.avg)}</small></button>`).join('')}</div>` : ''}
-    <div class="board-side">Gegner</div>
     <div class="board">${rows}</div>
-    <div class="board-side">Deine Seite</div>
+    <div class="board-foot">
+      <span class="hint">${tab.early ? 'Häufigstes frühes Board' : 'Zielboard'} · antippen = habe ich</span>
+      ${tab.options.length > 1 ? `<span class="variants">${tab.options.map((o, i) =>
+        `<button data-variant="${i}" class="${o === opt ? 'on' : ''}" title="Ø Platz ${num(o.avg)}">V${i + 1}</button>`).join('')}</span>` : ''}
+    </div>
     <div class="traits">${traits.map((t) => `<span class="trait style-${t.style}" title="${esc(t.name)}">${img(t.icon, t.name)}<b>${t.count}</b> ${esc(t.name)}</span>`).join('')}</div>
-    <h3>Einheiten <small>antippen = habe ich</small></h3>
-    <div class="own-list">${realUnits.map((u) => {
-      const un = unit(u);
-      return `<button class="own cost-${un.cost}${game.owned[u] ? ' on' : ''}" data-own="${esc(u)}">
-        ${img(un.icon, un.name)}<span>${esc(un.name)}</span><em>${un.cost}</em></button>`;
-    }).join('')}</div>
-    ${tab.early ? '<p class="hint">Häufigstes frühes Board erfolgreicher Spieler dieser Comp – spiele ähnlich starke Einheiten, wenn du diese nicht findest.</p>' : ''}
-  </section>`;
-}
-
-// ---------- Items ----------
-function recipeHtml(id) {
-  const it = item(id);
-  const parts = it.recipe.length
-    ? it.recipe.map((c) => `<span class="comp-ic" title="${esc(item(c).name)}">${img(item(c).icon, item(c).name)}</span>`).join('<i>+</i>')
-    : '<span class="no-recipe">nicht baubar</span>';
-  return `<div class="recipe">
-    <span class="item-ic">${img(it.icon, it.name)}</span>
-    <span class="item-name">${esc(it.name)}</span>
-    <span class="parts">${parts}</span>
-  </div>`;
-}
-
-function renderItems(comp) {
-  const cs = carries(comp);
-  const prio = componentPriority(comp, db);
-  const emblem = emblemNeed(comp, db);
-  const builds = cs.map((u, idx) => {
-    const un = unit(u);
-    const [main, ...alts] = comp.builds[u];
-    return `<article class="build">
-      <header>
-        ${unitChip(u)}
-        <div><strong>${esc(un.name)}</strong><span>${idx === 0 ? 'Haupt-Carry' : comp.unitStats[u]?.items3 > 0.5 ? 'Item-Träger' : 'Zweite Wahl'}</span></div>
-      </header>
-      <div class="recipes">${main.items.map(recipeHtml).join('')}</div>
-      ${alts.length ? `<details><summary>Alternativen</summary>${alts.map((b) =>
-        `<div class="alt">${b.items.map((i) => `<span title="${esc(item(i).name)}">${img(item(i).icon, item(i).name)}</span>`).join('')}<small>Ø ${num(b.avg)}</small></div>`).join('')}</details>` : ''}
-    </article>`;
-  }).join('');
-
-  return `<section class="card">
-    <div class="card-head"><h2>Items</h2></div>
-    ${emblem ? `<p class="callout">Diese Comp lebt vom <b>${esc(item(emblem.item).name)}</b> auf ${esc(unit(emblem.unit).name)}${emblem.recipe.length ? ` (${emblem.recipe.map((c) => esc(item(c).name)).join(' + ')})` : ' – nur über Augments oder Beute'}.</p>` : ''}
-    <div class="builds">${builds || '<p class="empty">Keine Build-Daten.</p>'}</div>
-    <h3>Komponenten-Priorität <small>für die Haupt-Builds</small></h3>
-    <div class="comp-prio">${prio.map((p, i) => `<span class="${i < 3 ? 'top' : ''}">${img(item(p.id).icon, item(p.id).name)}<b>${p.need}×</b> ${esc(item(p.id).name)}</span>`).join('')}</div>
-    <h3>Beliebteste Items <small>Anteil der Spiele</small></h3>
-    <div class="top-items">${comp.topItems.slice(0, 10).map((t) => `<span title="${esc(item(t.item).name)}${t.unit ? ` · meist auf ${esc(unit(t.unit).name)}` : ''}">
-      ${img(item(t.item).icon, item(t.item).name)}<small>${Math.round(t.pct * 100)} %</small></span>`).join('')}</div>
+    ${renderBuilds(comp)}
   </section>`;
 }
 
@@ -301,34 +283,34 @@ function renderLevels(comp) {
       }).join('')}</div></div>`);
   }
 
-  const rows = sched.map((e) => {
+  const chips = sched.map((e) => {
     const done = game.level >= e.level;
     const late = !done && e.i <= ri;
-    return `<li class="${done ? 'done' : late ? 'late' : ''}">
-      <b>Level ${e.level}</b><span>bis ${e.s}-${e.n}</span>
-      <em>${done ? 'erreicht' : late ? 'überfällig' : `in ${e.i - ri} Runde${e.i - ri === 1 ? '' : 'n'}`}</em>
-    </li>`;
+    return `<li class="${done ? 'done' : late ? 'late' : ''}" title="${done ? 'erreicht' : late ? 'überfällig' : 'offen'}">
+      <b>Lvl ${e.level}</b> ${e.s}-${e.n}${done ? ' ✓' : late ? ' !' : ''}</li>`;
   }).join('');
 
   const fin = comp.finalLevels.filter((f) => f.pct >= 0.05);
-  return `<section class="card">
+  return `<section class="card levels">
     <div class="card-head"><h2>Level-Zeitplan</h2><span class="badge">${esc(styleLabel(comp))}</span></div>
+    <ul class="lvl-list">${chips}</ul>
     <div class="timeline">${stages.join('')}</div>
-    <p class="legend"><span><b class="lvl">7</b> Level-Up dieser Comp</span><span><b class="lvl roll">8</b> Roll-Level</span><span><i class="std">7</i> Standard-Tempo</span></p>
-    <ul class="lvl-list">${rows}</ul>
-    ${fin.length ? `<p class="hint">Endlevel in gespielten Partien: ${fin.map((f) => `Level ${f.level} ${Math.round(f.pct * 100)} % (Ø Platz ${num(f.avg, 1)})`).join(' · ')}</p>` : ''}
+    <p class="legend"><span><b class="lvl">7</b> Level-Up</span><span><b class="lvl roll">8</b> Roll-Level</span><span><i class="std">7</i> Standard-Tempo</span></p>
+    ${fin.length ? `<p class="hint">Endlevel: ${fin.map((f) => `Lvl ${f.level} ${Math.round(f.pct * 100)} % (Ø ${num(f.avg, 1)})`).join(' · ')}</p>` : ''}
   </section>`;
 }
 
 // ---------- Rundensteuerung + Tipps ----------
 function stepper(key, label, min, max, step) {
   return `<div class="stepper">
-    <label for="in-${key}">${label}</label>
-    <div><button data-step="${key}" data-d="${-step}" aria-label="${label} verringern">−</button>
-    <input id="in-${key}" data-field="${key}" type="number" inputmode="numeric" min="${min}" max="${max}" value="${game[key]}">
-    <button data-step="${key}" data-d="${step}" aria-label="${label} erhöhen">+</button></div>
+    <button data-step="${key}" data-d="${-step}" aria-label="${label} verringern">−</button>
+    <label><small>${label}</small>
+    <input data-field="${key}" type="number" inputmode="numeric" min="${min}" max="${max}" value="${game[key]}"></label>
+    <button data-step="${key}" data-d="${step}" aria-label="${label} erhöhen">+</button>
   </div>`;
 }
+
+const STREAKS = { none: 'Keine', win: 'Siege', loss: 'Niederl.' };
 
 function renderControl(comp) {
   const ri = roundIndex(game.stage, game.round);
@@ -336,6 +318,8 @@ function renderControl(comp) {
   const type = roundType(r);
   const target = targetLevel(schedule(comp), ri);
   const diff = game.level - target;
+  const state = diff < 0 ? 'behind' : diff > 0 ? 'ahead' : 'ok';
+  const stateText = diff < 0 ? `${-diff} Level zurück` : diff > 0 ? `${diff} Level voraus` : 'im Plan';
   return `<section class="card control">
     <div class="round-nav">
       <button data-round="-1" ${ri <= 0 ? 'disabled' : ''} aria-label="Vorherige Runde">‹</button>
@@ -343,36 +327,31 @@ function renderControl(comp) {
         <span class="round-key">${r.key}</span>
         <span class="round-type ${type}">${TYPE_LABEL[type]}${isAugmentRound(r) ? ' · Augment' : ''}</span>
       </div>
-      <button class="next" data-round="1" ${ri >= ROUNDS.length - 1 ? 'disabled' : ''}>Nächste Runde ›</button>
+      <button class="soll ${state}" data-setlevel="${target}" title="Level auf ${target} setzen"><small>Soll Lvl ${target}</small><b>${stateText}</b></button>
+      <button class="next" data-round="1" ${ri >= ROUNDS.length - 1 ? 'disabled' : ''}>Weiter ›</button>
     </div>
     <div class="inputs">
       ${stepper('level', 'Level', 1, 10, 1)}
       ${stepper('gold', 'Gold', 0, 999, 10)}
       ${stepper('hp', 'Leben', 1, 100, 10)}
-      <div class="stepper streak">
-        <label>Serie</label>
-        <div class="seg">${[['win', 'Siege'], ['none', 'Keine'], ['loss', 'Niederl.']].map(([k, l]) =>
-          `<button data-streak="${k}" class="${game.streak === k ? 'on' : ''}">${l}</button>`).join('')}</div>
-      </div>
-    </div>
-    <div class="status ${diff < 0 ? 'behind' : diff > 0 ? 'ahead' : 'ok'}">
-      Soll-Level in ${r.key}: <b>${target}</b> ·
-      ${diff < 0 ? `du liegst ${-diff} Level zurück` : diff > 0 ? `du bist ${diff} Level voraus` : 'du bist im Plan'}
-      ${diff !== 0 ? `<button data-setlevel="${target}">auf ${target} setzen</button>` : ''}
+      <button class="streak ${game.streak}" data-streak title="Serie umschalten"><small>Serie</small><b>${STREAKS[game.streak]}</b></button>
     </div>
   </section>`;
 }
 
 function renderTips(comp) {
   const tips = buildTips(comp, db, game);
-  const next = upcoming(comp, db, game);
   return `<section class="card tips">
     <div class="card-head"><h2>Jetzt tun</h2></div>
-    <ol>${tips.map((t) => `<li class="tip ${t.prio}">
-      <span class="tag">${esc(t.tag)}</span>
-      <div><strong>${esc(t.title)}</strong><p>${esc(t.text)}</p></div></li>`).join('') || '<li class="empty">Keine besonderen Hinweise – stärkstes Board spielen.</li>'}</ol>
-  </section>
-  <section class="card upcoming">
+    <ol>${tips.map((t) => `<li class="tip ${t.prio}"><details${t.prio === 'high' ? ' open' : ''}>
+      <summary><span class="tag">${esc(t.tag)}</span><strong>${esc(t.title)}</strong></summary>
+      <p>${esc(t.text)}</p></details></li>`).join('') || '<li class="empty">Keine besonderen Hinweise – stärkstes Board spielen.</li>'}</ol>
+  </section>`;
+}
+
+function renderUpcoming(comp) {
+  const next = upcoming(comp, db, game);
+  return `<section class="card upcoming">
     <div class="card-head"><h2>Nächste Runden</h2></div>
     <ul>${next.map((r) => `<li class="${r.type}">
       <b>${r.key}</b><span class="round-type ${r.type}">${TYPE_LABEL[r.type]}</span>
@@ -384,22 +363,15 @@ function renderGuide(comp) {
   const t = tier(comp);
   app.innerHTML = `
     <section class="guide-head">
-      <a class="back" href="#/">‹ Teams</a>
-      <div class="guide-title">
-        <span class="tier tier-${t}">${t}</span>
-        <h1>${esc(compName(comp))}</h1>
-      </div>
-      <dl class="stats inline">
-        <div><dt>Ø Platz</dt><dd>${num(comp.avg)}</dd></div>
-        <div><dt>Top 4</dt><dd>${pct(comp.top4)}</dd></div>
-        <div><dt>Sieg</dt><dd>${pct(comp.win)}</dd></div>
-        <div><dt>Spiele</dt><dd>${comp.count.toLocaleString('de-DE')}</dd></div>
-      </dl>
+      <a class="back" href="#/" aria-label="Zur Teamwahl">‹ Teams</a>
+      <span class="tier tier-${t}">${t}</span>
+      <h1>${esc(compName(comp))}</h1>
+      <span class="head-stats">Ø ${num(comp.avg)} · Top 4 ${pct(comp.top4)} · Sieg ${pct(comp.win)}</span>
       <button class="ghost" data-reset>Neues Spiel</button>
     </section>
     <div class="guide-grid">
-      <div class="col">${renderControl(comp)}${renderTips(comp)}${renderLevels(comp)}</div>
-      <div class="col">${renderBoard(comp)}${renderItems(comp)}</div>
+      <div class="col">${renderControl(comp)}${renderTips(comp)}${renderUpcoming(comp)}${renderLevels(comp)}</div>
+      <div class="col">${renderBoard(comp)}</div>
     </div>`;
   const tl = app.querySelector('.timeline');
   const now = tl?.querySelector('.tl-cell.now');
@@ -423,7 +395,7 @@ function bindGuide(comp) {
     } else if (d.step) {
       const input = app.querySelector(`[data-field="${d.step}"]`);
       setField(d.step, Number(game[d.step]) + Number(d.d), input);
-    } else if (d.streak) game.streak = d.streak;
+    } else if ('streak' in d) game.streak = { none: 'win', win: 'loss', loss: 'none' }[game.streak] || 'none';
     else if (d.setlevel) {
       game.level = Number(d.setlevel);
       ui.boardTab = '';
@@ -431,9 +403,10 @@ function bindGuide(comp) {
       ui.boardTab = d.tab;
       ui.variant = 0;
     } else if (d.variant) ui.variant = Number(d.variant);
+    else if (d.item) ui.itemInfo = ui.itemInfo === d.item ? null : d.item;
     else if (d.own) game.owned[d.own] ? delete game.owned[d.own] : (game.owned[d.own] = true);
     else if ('reset' in d) {
-      game = defaultGame();
+      game = { ...defaultGame(), compId: comp.id };
       ui.boardTab = '';
       ui.variant = 0;
     } else return;
@@ -476,6 +449,7 @@ function route() {
     }
     ui.boardTab = '';
     ui.variant = 0;
+    ui.itemInfo = null;
     renderGuide(comp);
     bindGuide(comp);
     window.scrollTo(0, 0);
