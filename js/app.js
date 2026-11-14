@@ -102,7 +102,7 @@ function renderPicker() {
   app.innerHTML = `
     <section class="picker-head">
       <h1>Welches Team spielst du?</h1>
-      <p class="sub">${data.comps.length} Meta-Comps aus ${esc(data.setName || data.set)}, sortiert nach durchschnittlicher Platzierung.</p>
+      <p class="sub">${data.comps.length} Meta-Comps aus ${esc(data.setName || data.set)}, sortiert nach durchschnittlicher Platzierung. Mit dem Stern ☆ merkst du dir Favoriten.</p>
       <div class="filters">
         <input id="search" type="search" placeholder="Einheit oder Synergie suchen …" value="${esc(ui.search)}" autocomplete="off">
         <div class="seg" role="group" aria-label="Spielstil">

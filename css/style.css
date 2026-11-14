@@ -97,8 +97,8 @@ main { max-width: 1180px; margin: 0 auto; padding: var(--gap) var(--pad); min-he
 .comp-wrap .comp-card-top { padding-right: 30px; }
 .grid-title { margin: 12px 0 6px; }
 .grid-title:first-of-type { color: var(--accent); margin-top: 0; }
-.fav-btn { border: 0; background: none; padding: 2px 6px; font-size: 1.25rem; line-height: 1; color: var(--muted); border-radius: 6px; }
-.fav-btn:hover { color: var(--text); }
+.fav-btn { border: 0; background: none; padding: 2px 6px; font-size: 1.4rem; line-height: 1; color: #c8c8c8; border-radius: 6px; }
+.fav-btn:hover { color: var(--accent); }
 .fav-btn.on { color: var(--accent); }
 .comp-wrap .fav-btn { position: absolute; top: 6px; right: 4px; z-index: 1; padding: 4px 8px; }
 .comp-card-top { display: flex; gap: 8px; align-items: center; }
