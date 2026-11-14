@@ -30,8 +30,8 @@ export const TYPE_LABEL = { carousel: 'Karussell', pve: 'PvE', pvp: 'Kampf' };
 export function schedule(comp) {
   const out = [];
   let last = -1;
-  const src = [...comp.levels];
-  if (!src.some((l) => l.level === 4)) src.unshift({ level: 4, stage: 2, round: 1 });
+  // Level 4 kommt ohne XP-Kauf zu Beginn von Stage 2
+  const src = [{ level: 4, stage: 2, round: 1 }, ...comp.levels.filter((l) => l.level > 4)];
   for (const l of src.sort((a, b) => a.level - b.level)) {
     const i = roundIndex(l.stage, l.round);
     if (i < 0 || l.level < 4) continue;

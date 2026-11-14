@@ -178,7 +178,7 @@ function boardOptions(comp) {
   const late = comp.finals[lvl];
   if (early && lvl <= 7) tabs.push({ key: 'now', label: `Jetzt · Level ${lvl}`, level: lvl, options: early, early: true });
   else if (late) tabs.push({ key: 'now', label: `Jetzt · Level ${lvl}`, level: lvl, options: late });
-  for (const l of Object.keys(comp.finals).map(Number).sort()) {
+  for (const l of Object.keys(comp.finals).map(Number).sort((a, b) => a - b)) {
     if (l === lvl && !(early && lvl <= 7)) continue;
     tabs.push({ key: `f${l}`, label: `Ziel · Level ${l}`, level: l, options: comp.finals[l] });
   }
