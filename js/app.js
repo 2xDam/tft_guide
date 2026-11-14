@@ -18,6 +18,24 @@ try {
 } catch { /* privater Modus */ }
 const overview = () => mode === 'overview';
 
+// Favoriten pro Gerät. Schlüssel ist der Comp-Name (Synergie + Einheiten), weil sich die
+// internen Nummern der Comps bei jedem Daten-Update ändern können.
+const FAVS = 'tft-guide-favs-v1';
+let favs = new Set();
+try {
+  favs = new Set(JSON.parse(localStorage.getItem(FAVS) || '[]'));
+} catch { /* privater Modus */ }
+const favKey = (c) => c.name.map((n) => n.id).join('+') || c.id;
+const isFav = (c) => favs.has(favKey(c));
+function toggleFav(c) {
+  const k = favKey(c);
+  favs.has(k) ? favs.delete(k) : favs.add(k);
+  try {
+    localStorage.setItem(FAVS, JSON.stringify([...favs]));
+  } catch { /* privater Modus */ }
+}
+const favButton = (c) => `<button class="fav-btn${isFav(c) ? ' on' : ''}" data-fav="${c.id}" aria-pressed="${isFav(c)}" title="${isFav(c) ? 'Favorit entfernen' : 'Als Favorit merken'}">${isFav(c) ? '★' : '☆'}</button>`;
+
 // ---------- Hilfen ----------
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const pct = (n) => (n == null ? '–' : `${(n * 100).toFixed(1).replace('.', ',')} %`);
@@ -91,9 +109,22 @@ function renderPicker() {
         </div>
       </div>
     </section>
+    ${list.some(isFav) ? `<h2 class="grid-title">★ Favoriten</h2>
+    <section class="comp-grid">${list.filter(isFav).map(compCard).join('')}</section>
+    <h2 class="grid-title">Alle Teams</h2>` : ''}
     <section class="comp-grid">
-      ${list.map(compCard).join('') || '<p class="empty">Keine Comp passt zur Suche.</p>'}
+      ${list.filter((c) => !isFav(c)).map(compCard).join('') || (list.length ? '' : '<p class="empty">Keine Comp passt zur Suche.</p>')}
     </section>`;
+
+  app.querySelectorAll('[data-fav]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const c = data.comps.find((x) => x.id === b.dataset.fav);
+      if (!c) return;
+      toggleFav(c);
+      const y = window.scrollY;
+      renderPicker();
+      window.scrollTo(0, y);
+    }));
 
   const search = document.getElementById('search');
   search.addEventListener('input', () => {
@@ -114,7 +145,7 @@ function renderPicker() {
 function compCard(c) {
   const t = tier(c);
   const main = new Set(carries(c).slice(0, 2));
-  return `<a class="comp-card" href="#/comp/${c.id}">
+  return `<div class="comp-wrap">${favButton(c)}<a class="comp-card" href="#/comp/${c.id}">
     <div class="comp-card-top">
       <span class="tier tier-${t}">${t}</span>
       <div class="comp-title">
@@ -124,7 +155,7 @@ function compCard(c) {
     </div>
     <div class="unit-row">${[...c.units].sort(byCost).map((u) => unitChip(u, { items: main.has(u) ? c.builds[u][0].items : [] })).join('')}</div>
     <span class="card-stats">Ø <b>${num(c.avg)}</b> · Top 4 <b>${pct(c.top4)}</b> · Sieg <b>${pct(c.win)}</b></span>
-  </a>`;
+  </a></div>`;
 }
 
 // ---------- Board ----------
@@ -445,6 +476,7 @@ function renderGuide(comp) {
       <a class="back" href="#/" aria-label="Zur Teamwahl">‹ Teams</a>
       <span class="tier tier-${t}">${t}</span>
       <h1>${esc(compName(comp))}</h1>
+      ${favButton(comp)}
       <span class="head-stats">Ø ${num(comp.avg)} · Top 4 ${pct(comp.top4)} · Sieg ${pct(comp.win)}</span>
       <div class="seg mode" role="group" aria-label="Ansicht">
         <button data-mode="overview" class="${ov ? 'on' : ''}">Übersicht</button>
@@ -478,7 +510,8 @@ function bindGuide(comp) {
       });
       return;
     }
-    if (d.round) {
+    if (d.fav) toggleFav(comp);
+    else if (d.round) {
       const i = Math.min(ROUNDS.length - 1, Math.max(0, roundIndex(game.stage, game.round) + Number(d.round)));
       game.stage = ROUNDS[i].s;
       game.round = ROUNDS[i].n;
