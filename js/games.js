@@ -265,9 +265,15 @@ const LOG_WEAK = {
 };
 
 // Eigene Mitschriften aus dem Modus „Runde für Runde“
-function renderLogs(app, ctx, riotPlayers, logs) {
+let logWho = null; // gewählter Spieler-Filter, null = aktueller Spieler
+function renderLogs(app, ctx, riotPlayers, allLogs) {
   const { esc } = ctx;
   const all = ctx.matches;
+  const whoOf = (e) => e.player || 'Ohne Namen';
+  const names = [...new Set(allLogs.map(whoOf))];
+  let who = logWho ?? ctx.player;
+  if (who !== '*' && !names.includes(who)) who = names.length > 1 ? '*' : names[0] || '*';
+  const logs = who === '*' ? allLogs : allLogs.filter((e) => whoOf(e) === who);
   const rows = logs.map((e) => ({ e, findings: analyzeLog(e) }));
   const placed = logs.filter((e) => e.placement);
   const avg = placed.length ? placed.reduce((a, e) => a + e.placement, 0) / placed.length : null;
@@ -287,7 +293,11 @@ function renderLogs(app, ctx, riotPlayers, logs) {
     <section class="picker-head">
       <h1>Spiele &amp; Analyse</h1>
       <p class="sub">Mitschriften: deine im Modus „Runde für Runde“ gespeicherten Spiele – nur auf diesem Gerät.</p>
-      ${tabsHtml(riotPlayers.map((p) => p.riotId), 'log', logs.length, esc)}
+      ${tabsHtml(riotPlayers.map((p) => p.riotId), 'log', allLogs.length, esc)}
+      ${names.length > 1 ? `<div class="filters"><div class="seg scroll">
+        <button data-logwho="*" class="${who === '*' ? 'on' : ''}">Alle Spieler</button>
+        ${names.map((n) => `<button data-logwho="${esc(n)}" class="${n === who ? 'on' : ''}">${esc(shortName(n))}</button>`).join('')}
+      </div></div>` : names.length ? `<p class="sub">Spieler: ${esc(shortName(names[0]))}</p>` : ''}
     </section>
     ${logs.length ? `<section class="card games-sum">
         <dl class="plan-sum">
@@ -305,7 +315,7 @@ function renderLogs(app, ctx, riotPlayers, logs) {
           <header>
             <span class="place ${place}">${e.placement || '–'}</span>
             <div class="game-title"><b>${esc(e.compName)}</b>
-              <small>${date(e.time)} · ${esc(e.style || '')} · ${e.log.length} Runden bis ${esc(ROUNDS[last?.i]?.key || '?')} · Items ${e.itemsDone}/${e.itemsTotal}</small></div>
+              <small><em>${esc(shortName(whoOf(e)))}</em> · ${date(e.time)} · ${esc(e.style || '')} · ${e.log.length} Runden bis ${esc(ROUNDS[last?.i]?.key || '?')} · Items ${e.itemsDone}/${e.itemsTotal}</small></div>
             <button class="ghost del" data-del="${e.id}" title="Mitschrift löschen">Löschen</button>
           </header>
           ${chartSvg(e)}
@@ -321,6 +331,12 @@ function renderLogs(app, ctx, riotPlayers, logs) {
     ${riotPlayers.length ? '' : `<details class="alts"><summary>Riot-Spiele automatisch abrufen (optional)</summary>${setupHtml(all, esc)}</details>`}`;
 
   app.onclick = (ev) => {
+    const f = ev.target.closest('button[data-logwho]');
+    if (f) {
+      logWho = f.dataset.logwho;
+      renderLogs(app, ctx, riotPlayers, allLogs);
+      return;
+    }
     const b = ev.target.closest('button[data-del]');
     if (!b || !window.confirm('Diese Mitschrift löschen?')) return;
     removeHistory(b.dataset.del);

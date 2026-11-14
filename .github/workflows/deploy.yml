@@ -38,7 +38,7 @@ jobs:
       - name: Seite zusammenstellen
         run: |
           mkdir _site
-          cp -r index.html css js data icons manifest.webmanifest sw.js _site/
+          cp -r index.html css js data icons manifest.webmanifest sw.js players.json _site/
           # Versionskennung an alle eigenen Dateien hängen, damit Browser nach einem
           # Update keinen alten Stand aus dem Cache mischen.
           V="${GITHUB_SHA::8}-${GITHUB_RUN_NUMBER}"

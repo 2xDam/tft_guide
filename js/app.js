@@ -38,6 +38,60 @@ function toggleFav(c) {
 }
 const favButton = (c) => `<button class="fav-btn${isFav(c) ? ' on' : ''}" data-fav="${c.id}" aria-pressed="${isFav(c)}" title="${isFav(c) ? 'Favorit entfernen' : 'Als Favorit merken'}">${isFav(c) ? '★' : '☆'}</button>`;
 
+// ---------- Wer spielt? ----------
+// Wird bei jedem Start der App abgefragt, damit Mitschriften dem richtigen Spieler gehören.
+const PLAYER = 'tft-guide-player';
+const PLAYER_OK = 'tft-guide-player-ok';
+let player = '';
+let knownPlayers = [];
+try {
+  player = localStorage.getItem(PLAYER) || '';
+} catch { /* privater Modus */ }
+const shortPlayer = (p) => String(p).split('#')[0];
+
+function showWho() {
+  const btn = document.getElementById('who');
+  btn.hidden = !player;
+  btn.textContent = player ? shortPlayer(player) : '';
+}
+
+function askPlayer(mandatory) {
+  const dlg = document.getElementById('who-dialog');
+  const names = [...new Set([...knownPlayers, ...(player && !knownPlayers.includes(player) ? [player] : [])])];
+  dlg.innerHTML = `<form method="dialog">
+      <h2>Wer spielt gerade?</h2>
+      <p class="hint">Mitschriften werden diesem Spieler zugeordnet.</p>
+      <div class="who-list">${names.map((n) => `<button type="button" data-who="${esc(n)}" class="${n === player ? 'on' : ''}">${esc(shortPlayer(n))}</button>`).join('')}</div>
+      <div class="who-other"><input name="other" placeholder="Anderer Name" maxlength="24" autocomplete="off"><button type="submit">OK</button></div>
+      ${mandatory ? '' : '<button type="button" class="ghost" data-close>Abbrechen</button>'}
+    </form>`;
+  const choose = (name) => {
+    name = String(name).trim();
+    if (!name) return;
+    player = name;
+    try {
+      localStorage.setItem(PLAYER, player);
+      sessionStorage.setItem(PLAYER_OK, '1');
+    } catch { /* privater Modus */ }
+    dlg.close();
+    showWho();
+    if (location.hash.startsWith('#/spiele')) route();
+  };
+  dlg.onclick = (ev) => {
+    const b = ev.target.closest('button');
+    if (b?.dataset.who) choose(b.dataset.who);
+    else if (b && 'close' in b.dataset) dlg.close();
+  };
+  dlg.querySelector('form').onsubmit = (ev) => {
+    ev.preventDefault();
+    choose(dlg.querySelector('input').value);
+  };
+  dlg.oncancel = (ev) => {
+    if (mandatory) ev.preventDefault();
+  };
+  if (!dlg.open) dlg.showModal();
+}
+
 // ---------- Hilfen ----------
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const pct = (n) => (n == null ? '–' : `${(n * 100).toFixed(1).replace('.', ',')} %`);
@@ -651,6 +705,7 @@ function saveMatchLog(comp, placement) {
   addHistory({
     id: Date.now(),
     time: Date.now(),
+    player,
     compId: comp.id,
     compName: compName(comp),
     style: styleLabel(comp),
@@ -713,7 +768,7 @@ function route() {
     app.onchange = null;
     loadMatches().then((matches) => {
       if (!location.hash.startsWith('#/spiele')) return;
-      renderGames(app, { data, db, esc, img, compName, matches }, g[1]);
+      renderGames(app, { data, db, esc, img, compName, matches, player }, g[1]);
       window.scrollTo(0, 0);
     });
     return;
@@ -765,6 +820,17 @@ async function init() {
     document.getElementById('meta').textContent = `${c.setName || c.set} · Daten vom ${date}`;
     window.addEventListener('hashchange', route);
     route();
+    knownPlayers = await fetch('players.json', { cache: 'no-cache' })
+      .then((r) => (r.ok ? r.json() : { players: [] }))
+      .then((j) => (j.players || []).map(String))
+      .catch(() => []);
+    showWho();
+    document.getElementById('who').onclick = () => askPlayer(false);
+    let asked = false;
+    try {
+      asked = sessionStorage.getItem(PLAYER_OK) === '1';
+    } catch { /* privater Modus */ }
+    if (!asked) askPlayer(true);
   } catch (err) {
     app.innerHTML = `<p class="loading">Die Daten konnten nicht geladen werden (${esc(err.message)}). Führe <code>npm run fetch</code> aus und starte die Seite über einen lokalen Server.</p>`;
   }
