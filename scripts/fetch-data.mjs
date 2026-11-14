@@ -182,7 +182,8 @@ function buildComp(base, details, placeStats) {
   };
 }
 
-function buildStatic(cd, setKey, comps) {
+function buildStatic(cd, setKey, comps, planner = []) {
+  const plannerCode = new Map(planner.map((p) => [p.character_id, p.team_planner_code]));
   const setNum = setKey.replace(/\D/g, '');
   const set = cd.sets[setNum];
   if (!set) throw new Error(`Set ${setNum} fehlt in den CommunityDragon-Daten`);
@@ -208,7 +209,15 @@ function buildStatic(cd, setKey, comps) {
       cost: ch.cost,
       traits: (ch.traits || []).map((t) => traitByName.get(t) || t),
       icon: icon(ch.tileIcon || ch.squareIcon || ch.icon),
+      code: plannerCode.get(ch.apiName) ?? null, // Nummer für den Team-Planer im Spiel
     };
+  }
+  // Formen derselben Einheit (z. B. "Lux (…)") teilen sich den Code der Grundform
+  const coded = Object.values(units).filter((u) => u.code);
+  for (const u of Object.values(units)) {
+    if (u.code) continue;
+    const base = coded.find((c) => u.name.startsWith(`${c.name} `));
+    if (base) u.code = base.code;
   }
   // Beschworene Einheiten o. Ä., die nur in anderen Listen stehen
   const allChamps = new Map(Object.values(cd.sets).flatMap((s) => s.champions).map((c) => [c.apiName, c]));
@@ -289,7 +298,14 @@ async function main() {
 
   console.log(`Lade Spieldaten (${LOCALE}) von CommunityDragon …`);
   const cd = await getJson(`${CDRAGON}/cdragon/tft/${LOCALE}.json`);
-  const staticData = buildStatic(cd, setKey, comps);
+  // Team-Planer-Codes sind optional: ohne sie fehlt nur der Kopier-Knopf
+  const planner = await getJson(`${CDRAGON}/plugins/rcp-be-lol-game-data/global/default/v1/tftchampions-teamplanner.json`)
+    .then((p) => p[setKey] || [])
+    .catch((err) => {
+      console.warn(`Team-Planer-Codes nicht verfügbar: ${err.message}`);
+      return [];
+    });
+  const staticData = buildStatic(cd, setKey, comps, planner);
 
   await mkdir(OUT, { recursive: true });
   const meta = { set: setKey, setName: staticData.setName, updated: new Date().toISOString(), source: 'MetaTFT', comps };

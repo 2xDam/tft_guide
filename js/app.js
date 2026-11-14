@@ -197,6 +197,34 @@ function boardOptions(comp) {
   return tabs;
 }
 
+// Code für den Team-Planer im Spiel: "02" + je Einheit 3 Hex-Stellen (10 Plätze) + Set-Kennung
+function teamCode(units) {
+  const codes = [...new Set(units.map((u) => unit(u).code).filter(Boolean))];
+  if (!codes.length) return null;
+  const slots = codes.slice(0, 10).map((c) => c.toString(16).padStart(3, '0'));
+  while (slots.length < 10) slots.push('000');
+  return `02${slots.join('')}${data.set}`;
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.append(ta);
+    ta.select();
+    let ok = false;
+    try {
+      ok = document.execCommand('copy');
+    } catch { /* nicht unterstützt */ }
+    ta.remove();
+    return ok;
+  }
+}
+
 // Item mit Rezept als kompakte Kachel: großes Icon, daneben die beiden Komponenten
 function recipeChip(id, key) {
   const it = item(id);
@@ -263,6 +291,7 @@ function renderBoard(comp) {
   const cells = layoutBoard(comp, opt.units);
   const stars = new Set(threeStarTargets(comp));
   const traits = activeTraits(opt.units.filter(isReal), opt.traits);
+  const code = teamCode([...opt.units].filter(isReal).sort(byCost));
 
   const rows = [0, 1, 2, 3].map((row) => `<div class="hex-row${row % 2 ? ' offset' : ''}">${
     cells.slice(row * 7, row * 7 + 7).map((u) => {
@@ -284,9 +313,12 @@ function renderBoard(comp) {
     </div>
     <div class="board">${rows}</div>
     <div class="board-foot">
-      <span class="hint">${tab.early ? 'Häufigstes frühes Board' : 'Zielboard'} · antippen = habe ich</span>
+      <span class="hint">${tab.early ? 'Frühes Board' : 'Zielboard'} · antippen = habe ich</span>
+      <span class="foot-actions">
       ${tab.options.length > 1 ? `<span class="variants">${tab.options.map((o, i) =>
         `<button data-variant="${i}" class="${o === opt ? 'on' : ''}" title="Ø Platz ${num(o.avg)}">V${i + 1}</button>`).join('')}</span>` : ''}
+      ${code ? `<button class="copy-code" data-code="${esc(code)}" title="Im Spiel: Team-Planer öffnen und Code einfügen">Teamcode kopieren</button>` : ''}
+      </span>
     </div>
     <div class="traits">${traits.map((t) => `<span class="trait style-${t.style}" title="${esc(t.name)}">${img(t.icon, t.name)}<b>${t.count}</b> ${esc(t.name)}</span>`).join('')}</div>
     ${renderBuilds(comp)}
@@ -433,6 +465,18 @@ function bindGuide(comp) {
     const b = ev.target.closest('button');
     if (!b || !app.contains(b)) return;
     const d = b.dataset;
+    if (d.code) {
+      copyText(d.code).then((ok) => {
+        b.textContent = ok ? 'Kopiert ✓' : d.code;
+        b.classList.toggle('done', ok);
+        setTimeout(() => {
+          if (!b.isConnected) return;
+          b.textContent = 'Teamcode kopieren';
+          b.classList.remove('done');
+        }, ok ? 1800 : 8000);
+      });
+      return;
+    }
     if (d.round) {
       const i = Math.min(ROUNDS.length - 1, Math.max(0, roundIndex(game.stage, game.round) + Number(d.round)));
       game.stage = ROUNDS[i].s;
@@ -522,8 +566,8 @@ function route() {
 async function init() {
   try {
     const [c, s] = await Promise.all([
-      fetch('data/comps.json').then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status)))),
-      fetch('data/static.json').then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status)))),
+      fetch('data/comps.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status)))),
+      fetch('data/static.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status)))),
     ]);
     data = c;
     db = s;

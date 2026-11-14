@@ -205,6 +205,12 @@ main { max-width: 1180px; margin: 0 auto; padding: var(--gap) var(--pad); min-he
 .hex-items img { width: calc(var(--hex) * .3); height: calc(var(--hex) * .3); border-radius: 3px; border: 1px solid #000; }
 .hex-name { position: absolute; top: 100%; left: -5px; right: -5px; text-align: center; font-size: clamp(8px, calc(var(--hex) * .2), 10.5px); line-height: 1.2; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .board-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: -2px; }
+.foot-actions { display: inline-flex; align-items: center; gap: 6px; flex: none; }
+.copy-code { background: var(--panel-2); border: 1px solid var(--accent); border-radius: 6px; padding: 2px 9px; font-size: .76rem; color: var(--accent); white-space: nowrap; }
+.copy-code:not(.done) { max-width: 60cqw; overflow: hidden; text-overflow: ellipsis; user-select: all; -webkit-user-select: all; }
+.copy-code:hover { background: rgba(232, 181, 74, .12); }
+.copy-code.done { border-color: var(--good); color: var(--good); }
+.board-foot .hint { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .variants { display: inline-flex; gap: 3px; }
 .variants button { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 1px 8px; font-size: .74rem; color: var(--muted); }
 .variants button.on { border-color: var(--accent); color: var(--text); }
