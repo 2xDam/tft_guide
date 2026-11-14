@@ -261,3 +261,52 @@ export function upcoming(comp, db, st, count = 5) {
   }
   return out;
 }
+
+// Allgemeiner Spielplan je Stage – unabhängig vom aktuellen Spielstand.
+export function gamePlan(comp, db) {
+  const sched = schedule(comp);
+  const rollLvl = rollLevel(comp);
+  const reroll = isReroll(comp);
+  const cs = carries(comp);
+  const carryNames = listDe(names(cs.slice(0, 2), db));
+  const stars = threeStarTargets(comp);
+  const starNames = listDe(names(stars.slice(0, 4), db));
+  const comps = componentPriority(comp, db).slice(0, 3).map((c) => db.items[c.id]?.name).filter(Boolean);
+  const emblem = emblemNeed(comp, db);
+  const rollEntry = sched.find((e) => e.level === rollLvl);
+  const rollStage = rollEntry ? Math.min(5, rollEntry.s) : null;
+  const bucket = (s) => Math.min(5, s);
+  const fixed = {
+    2: ['Paare und passende Einheiten kaufen, sonst Gold sparen (Ziel: 50).', comps.length ? `Im Karussell: ${comps.join(', ')}.` : null],
+    3: ['Fertige Items bauen statt Komponenten zu horten.', 'Über 50 Gold nur für geplante Level-Ups ausgeben.'],
+    4: [`Items auf ${carryNames || 'die Carries'} legen, Platzhalter ersetzen.`],
+    5: ['Überschüssiges Gold in Level und teure Einheiten stecken.', 'Aufstellung an die stärksten Gegner anpassen.'],
+  };
+  const out = [];
+  for (let s = 2; s <= 5; s++) {
+    const points = [];
+    const ups = sched.filter((e) => e.level > 4 && bucket(e.s) === s);
+    if (ups.length) points.push(ups.map((e) => `Level ${e.level} in ${e.s}-${e.n}`).join(', ') + '.');
+    if (rollStage === s) {
+      points.push(reroll
+        ? `Ab ${rollEntry.s}-${rollEntry.n} auf Level ${rollLvl} bleiben und alles über 50 Gold verrollen${starNames ? ` – Ziel: 3 Sterne auf ${starNames}` : ''}.`
+        : `In ${rollEntry.s}-${rollEntry.n} auf Level ${rollLvl} runterrollen, bis ${carryNames || 'die Carries'} 2 Sterne haben.`);
+    } else if (rollStage && s < rollStage && s >= 3) {
+      points.push(`Nicht rollen – erst auf Level ${rollLvl}.`);
+    } else if (rollStage && s === rollStage + 1 && reroll) {
+      points.push('Sind die 3-Sterne fertig, weiter leveln und das Board abrunden.');
+    }
+    if (s === 2 && emblem) points.push(`Auf ${db.items[emblem.item]?.name} achten (Augments, Pfannenwender) – für ${db.units[emblem.unit]?.name}.`);
+    points.push(...fixed[s].filter(Boolean));
+    out.push({ title: s === 5 ? 'Stage 5+' : `Stage ${s}`, points });
+  }
+  return {
+    stages: out,
+    summary: [
+      ['Spielstil', styleLabel(comp)],
+      ['Carries', listDe(names(cs.slice(0, 3), db)) || '–'],
+      stars.length ? ['3 Sterne', starNames] : null,
+      comps.length ? ['Komponenten', comps.join(', ')] : null,
+    ].filter(Boolean),
+  };
+}

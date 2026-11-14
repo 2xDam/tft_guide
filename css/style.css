@@ -133,6 +133,18 @@ main { max-width: 1180px; margin: 0 auto; padding: var(--gap) var(--pad); min-he
 .streak.win { border-color: var(--good); } .streak.win b { color: var(--good); }
 .streak.loss { border-color: var(--bad); } .streak.loss b { color: var(--bad); }
 
+/* Übersicht */
+.mode button { padding: 3px 9px; font-size: .78rem; }
+.plan-sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 4px 12px; margin: 0 0 8px; }
+.plan-sum div { min-width: 0; }
+.plan-sum dt { font-size: .62rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.plan-sum dd { margin: 0; font-size: .86rem; font-weight: 600; }
+.plan-stages { display: grid; gap: 4px; }
+.plan-stage { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 8px; padding: 6px 8px; border-radius: 6px; background: var(--panel-2); border-left: 3px solid var(--c3); }
+.plan-stage h3 { color: var(--text); letter-spacing: .04em; padding-top: 2px; }
+.plan-stage ul { list-style: none; padding: 0; display: grid; gap: 2px; font-size: .84rem; }
+.overview .tl-cell { cursor: default; }
+
 /* Tipps */
 .tips ol, .upcoming ul, .lvl-list { list-style: none; padding: 0; }
 .tips ol { display: grid; gap: 4px; }
@@ -241,10 +253,12 @@ main { max-width: 1180px; margin: 0 auto; padding: var(--gap) var(--pad); min-he
   .col { display: contents; }
   .control { order: 1; position: sticky; top: 0; z-index: 9; border-radius: 0 0 var(--radius) var(--radius); margin: 0 calc(var(--pad) * -1); border-width: 0 0 1px; box-shadow: 0 6px 14px rgba(0, 0, 0, .45); }
   .tips { order: 2; } .board-card { order: 3; } .upcoming { order: 4; } .levels { order: 5; }
+  .overview .board-card { order: 1; } .plan { order: 2; }
+  .mode { order: 6; }
+  .guide-head .ghost { order: 7; margin-left: auto; }
   .guide-head { margin-bottom: 4px; }
   .guide-head h1 { flex-basis: calc(100% - 120px); font-size: 1.05rem; }
   .head-stats { order: 5; flex: 1 1 auto; }
-  .guide-head .ghost { order: 6; }
   .round-nav > button { height: 36px; padding: 0 10px; }
   .round-key { font-size: 1.35rem; }
   .inputs { margin-top: 6px; gap: 4px; }
@@ -254,6 +268,9 @@ main { max-width: 1180px; margin: 0 auto; padding: var(--gap) var(--pad); min-he
   .build { gap: 6px; }
   .build-items { gap: 3px; }
   .rc-item, .rc .noimg.rc-item { width: 28px; height: 28px; }
+}
+@media (max-width: 480px) {
+  .head-stats { display: none; }
 }
 @media (max-width: 360px) {
   .build-name small { display: none; }

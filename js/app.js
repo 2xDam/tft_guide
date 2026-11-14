@@ -1,7 +1,7 @@
 import {
   ROUNDS, TYPE_LABEL, roundIndex, roundType, isAugmentRound, schedule, standardSchedule, targetLevel,
   rollLevel, isReroll, styleLabel, carries, threeStarTargets, componentPriority, emblemNeed,
-  buildTips, upcoming,
+  buildTips, upcoming, gamePlan,
 } from './tips.js';
 
 const app = document.getElementById('app');
@@ -10,6 +10,12 @@ let data = null; // { comps, set, updated }
 let db = null; // statische Daten
 let ui = { search: '', style: 'all', boardTab: 'now', variant: 0 };
 let game = loadGame();
+const MODE = 'tft-guide-mode';
+let mode = 'track';
+try {
+  mode = localStorage.getItem(MODE) === 'overview' ? 'overview' : 'track';
+} catch { /* privater Modus */ }
+const overview = () => mode === 'overview';
 
 // ---------- Hilfen ----------
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -169,6 +175,15 @@ function activeTraits(units, given) {
 
 function boardOptions(comp) {
   const tabs = [];
+  if (overview()) {
+    const levels = [...new Set([...Object.keys(comp.boards), ...Object.keys(comp.finals)].map(Number))].sort((a, b) => a - b);
+    for (const l of levels) {
+      const early = comp.boards[l] && (l <= 6 || !comp.finals[l]);
+      tabs.push({ key: `f${l}`, label: `Lvl ${l}`, level: l, options: early ? comp.boards[l] : comp.finals[l], early });
+    }
+    if (!tabs.length) tabs.push({ key: 'base', label: 'Zielboard', level: comp.units.length, options: [{ units: comp.units, traits: comp.traits }] });
+    return tabs;
+  }
   const lvl = game.level;
   const early = comp.boards[lvl];
   const late = comp.finals[lvl];
@@ -241,7 +256,7 @@ function renderBoard(comp) {
   let tab = tabs.find((t) => t.key === ui.boardTab);
   if (!tab) {
     // Standard: aktuelles Board solange es früh ist, sonst das häufigste Endboard
-    tab = tabs.find((t) => t.key === 'now' && game.level < rollLevel(comp)) || tabs.find((t) => t.key === `f${rollLevel(comp)}`) ||
+    tab = (!overview() && tabs.find((t) => t.key === 'now' && game.level < rollLevel(comp))) || tabs.find((t) => t.key === `f${rollLevel(comp)}`) ||
       (game.level >= rollLevel(comp) && tabs.find((t) => t.key === 'now')) || tabs[tabs.length - 1];
   }
   const opt = tab.options[Math.min(ui.variant, tab.options.length - 1)] || tab.options[0];
@@ -282,7 +297,8 @@ function renderBoard(comp) {
 function renderLevels(comp) {
   const sched = schedule(comp);
   const std = standardSchedule();
-  const ri = roundIndex(game.stage, game.round);
+  const ov = overview();
+  const ri = ov ? -1 : roundIndex(game.stage, game.round);
   const lastIdx = Math.max(roundIndex(6, 7), ...sched.map((e) => e.i));
   const lastStage = ROUNDS[lastIdx].s;
   const rollLvl = rollLevel(comp);
@@ -303,9 +319,9 @@ function renderLevels(comp) {
   }
 
   const chips = sched.map((e) => {
-    const done = game.level >= e.level;
-    const late = !done && e.i <= ri;
-    return `<li class="${done ? 'done' : late ? 'late' : ''}" title="${done ? 'erreicht' : late ? 'überfällig' : 'offen'}">
+    const done = !ov && game.level >= e.level;
+    const late = !ov && !done && e.i <= ri;
+    return `<li class="${done ? 'done' : late ? 'late' : ''}" title="${done ? 'erreicht' : late ? 'überfällig' : `bis ${e.s}-${e.n}`}">
       <b>Lvl ${e.level}</b> ${e.s}-${e.n}${done ? ' ✓' : late ? ' !' : ''}</li>`;
   }).join('');
 
@@ -378,18 +394,33 @@ function renderUpcoming(comp) {
   </section>`;
 }
 
+function renderPlan(comp) {
+  const plan = gamePlan(comp, db);
+  return `<section class="card plan">
+    <div class="card-head"><h2>Spielplan</h2></div>
+    <dl class="plan-sum">${plan.summary.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
+    <div class="plan-stages">${plan.stages.map((st) => `<div class="plan-stage"><h3>${esc(st.title)}</h3>
+      <ul>${st.points.map((p) => `<li>${esc(p)}</li>`).join('')}</ul></div>`).join('')}</div>
+  </section>`;
+}
+
 function renderGuide(comp) {
   const t = tier(comp);
+  const ov = overview();
   app.innerHTML = `
     <section class="guide-head">
       <a class="back" href="#/" aria-label="Zur Teamwahl">‹ Teams</a>
       <span class="tier tier-${t}">${t}</span>
       <h1>${esc(compName(comp))}</h1>
       <span class="head-stats">Ø ${num(comp.avg)} · Top 4 ${pct(comp.top4)} · Sieg ${pct(comp.win)}</span>
-      <button class="ghost" data-reset>Neues Spiel</button>
+      <div class="seg mode" role="group" aria-label="Ansicht">
+        <button data-mode="overview" class="${ov ? 'on' : ''}">Übersicht</button>
+        <button data-mode="track" class="${ov ? '' : 'on'}">Runde für Runde</button>
+      </div>
+      <button class="ghost" data-reset>${ov ? 'Zurücksetzen' : 'Neues Spiel'}</button>
     </section>
-    <div class="guide-grid">
-      <div class="col">${renderControl(comp)}${renderTips(comp)}${renderUpcoming(comp)}${renderLevels(comp)}</div>
+    <div class="guide-grid${ov ? ' overview' : ''}">
+      <div class="col">${ov ? renderPlan(comp) : renderControl(comp) + renderTips(comp) + renderUpcoming(comp)}${renderLevels(comp)}</div>
       <div class="col">${renderBoard(comp)}</div>
     </div>`;
   const tl = app.querySelector('.timeline');
@@ -407,7 +438,15 @@ function bindGuide(comp) {
       game.stage = ROUNDS[i].s;
       game.round = ROUNDS[i].n;
       ui.boardTab = '';
+    } else if (d.mode) {
+      mode = d.mode;
+      ui.boardTab = '';
+      ui.variant = 0;
+      try {
+        localStorage.setItem(MODE, mode);
+      } catch { /* privater Modus */ }
     } else if (d.goto) {
+      if (overview()) return;
       const r = ROUNDS[Number(d.goto)];
       game.stage = r.s;
       game.round = r.n;
