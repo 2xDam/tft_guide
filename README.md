@@ -27,6 +27,21 @@ Danach http://localhost:4173 öffnen. Es gibt keinen Build-Schritt und keine Abh
 Der Workflow `.github/workflows/deploy.yml` importiert bei jedem Push und einmal täglich
 frische Daten und veröffentlicht die Seite auf GitHub Pages.
 
+## Meine Spiele (optional)
+
+Die Seite „Meine Spiele“ zeigt die letzten Partien der eingetragenen Riot-IDs und wertet den
+Endstand gegen die Meta-Daten aus (Platzierung, Level, Items und Sterne der Carries, Restgold).
+Entscheidungen pro Runde liefert die Riot-API nicht.
+
+1. Auf https://developer.riotgames.com einen persönlichen API-Schlüssel beantragen.
+2. Im Repository unter **Settings → Secrets and variables → Actions** das Secret
+   `RIOT_API_KEY` anlegen. Den Schlüssel niemals in eine Datei im Repository schreiben.
+3. In `players.json` die Riot-IDs (`Name#TAG`), die Region (`europe`, `americas`, `asia`, `sea`)
+   und die Anzahl der Spiele eintragen.
+
+Der Workflow ruft die Spiele bei jedem Lauf ab. Die Daten in `data/matches.json` sind über die
+veröffentlichte Seite öffentlich einsehbar. Lokal: `RIOT_API_KEY=… npm run matches`.
+
 ## Hinweise
 
 Die Tipps kombinieren Statistiken der gewählten Comp (Level-Timings, Roll-Level, Builds,

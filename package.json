@@ -6,6 +6,7 @@
   "description": "TFT-Guide: Rundentipps, Aufstellung, Items und Level-Zeitplan für Meta-Comps",
   "scripts": {
     "fetch": "node scripts/fetch-data.mjs",
+    "matches": "node scripts/fetch-matches.mjs",
     "start": "python3 -m http.server 4173"
   },
   "engines": {

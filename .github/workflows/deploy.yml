@@ -30,6 +30,11 @@ jobs:
       # Schlägt der Import fehl, wird der eingecheckte Datenstand ausgeliefert.
       - name: Meta-Daten importieren
         run: node scripts/fetch-data.mjs
+      # Läuft nur mit hinterlegtem Secret und eingetragenen Riot-IDs (players.json).
+      - name: Eigene Spiele abrufen
+        env:
+          RIOT_API_KEY: ${{ secrets.RIOT_API_KEY }}
+        run: node scripts/fetch-matches.mjs
       - name: Seite zusammenstellen
         run: |
           mkdir _site

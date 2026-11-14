@@ -3,6 +3,7 @@ import {
   rollLevel, isReroll, styleLabel, carries, threeStarTargets, componentPriority, emblemNeed,
   buildTips, upcoming, gamePlan,
 } from './tips.js';
+import { loadMatches, renderGames } from './games.js';
 
 const app = document.getElementById('app');
 const STORE = 'tft-guide-state-v1';
@@ -543,6 +544,17 @@ function update(comp) {
 
 // ---------- Routing ----------
 function route() {
+  const g = location.hash.match(/^#\/spiele(?:\/(\d+))?/);
+  if (g) {
+    app.onclick = null;
+    app.onchange = null;
+    loadMatches().then((matches) => {
+      if (!location.hash.startsWith('#/spiele')) return;
+      renderGames(app, { data, db, esc, img, compName, matches }, g[1]);
+      window.scrollTo(0, 0);
+    });
+    return;
+  }
   const m = location.hash.match(/^#\/comp\/(\w+)/);
   const comp = m && data.comps.find((c) => c.id === m[1]);
   app.onclick = null;

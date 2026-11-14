@@ -49,6 +49,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, summary:focus-visibl
 }
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; text-decoration: none; color: var(--accent); }
 .brand span { color: var(--text); }
+.topnav { display: flex; gap: 4px; margin-right: auto; margin-left: 8px; }
+.topnav a { color: var(--muted); text-decoration: none; font-size: .82rem; padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
+.topnav a:hover { color: var(--text); background: var(--panel-2); }
 .topbar-meta { color: var(--muted); font-size: .75rem; text-align: right; }
 
 main { max-width: 1180px; margin: 0 auto; padding: var(--gap) var(--pad); min-height: 70vh; }
@@ -96,6 +99,36 @@ main { max-width: 1180px; margin: 0 auto; padding: var(--gap) var(--pad); min-he
 .unit-row .unit { width: 30px; height: 30px; }
 .card-stats { color: var(--muted); font-size: .78rem; font-variant-numeric: tabular-nums; }
 .card-stats b { color: var(--text); font-weight: 600; }
+
+/* ---------- Meine Spiele ---------- */
+.segl { padding: 4px 10px; border-radius: 5px; color: var(--muted); text-decoration: none; font-size: .82rem; white-space: nowrap; }
+.segl.on { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.games-sum { margin-bottom: var(--gap); }
+.games-sum h3 { margin: 8px 0 4px; }
+.games-sum .plan-sum { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.fav, .issues, .findings { list-style: none; padding: 0; display: grid; gap: 2px; font-size: .84rem; }
+.fav li { display: flex; justify-content: space-between; gap: 8px; }
+.fav span { color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.issues b { color: var(--bad); font-variant-numeric: tabular-nums; }
+.games { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: var(--gap); align-items: start; }
+.game { display: grid; gap: 8px; }
+.game header { display: flex; gap: 8px; align-items: center; }
+.place { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; font-weight: 800; flex: none; background: var(--panel-2); color: var(--muted); }
+.place.ptop { background: rgba(78, 201, 139, .2); color: var(--good); }
+.place.p1 { background: var(--accent); color: var(--accent-ink); }
+.place.pbot { background: rgba(239, 107, 107, .16); color: var(--bad); }
+.game-title { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
+.game-title a, .game-title b { font-weight: 600; color: var(--text); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.game-title a:hover { color: var(--accent); }
+.game-title small { color: var(--muted); font-size: .72rem; }
+.game .unit-row { padding: 6px 0 4px; }
+.game .unit .stars { top: -10px; }
+.findings li { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 6px; align-items: baseline; }
+.findings i { font-style: normal; font-weight: 800; text-align: center; font-size: .78rem; }
+.findings .good i { color: var(--good); } .findings .bad i { color: var(--bad); } .findings .info i { color: #7fb6f0; }
+.findings .info, .findings .good { color: #c3cad8; }
+.setup ol { padding-left: 20px; display: grid; gap: 6px; }
+.setup code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 
 /* ---------- Guide ---------- */
 .guide-head { display: flex; align-items: center; gap: 4px 10px; flex-wrap: wrap; margin-bottom: var(--gap); }
@@ -254,7 +287,7 @@ main { max-width: 1180px; margin: 0 auto; padding: var(--gap) var(--pad); min-he
 /* ---------- Smartphone ---------- */
 @media (max-width: 860px) {
   :root { --gap: 6px; --pad: 8px; }
-  .topbar-meta { font-size: .68rem; }
+  .topbar-meta { display: none; }
   .guide-grid { grid-template-columns: minmax(0, 1fr); }
   .col { display: contents; }
   .control { order: 1; position: sticky; top: 0; z-index: 9; border-radius: 0 0 var(--radius) var(--radius); margin: 0 calc(var(--pad) * -1); border-width: 0 0 1px; box-shadow: 0 6px 14px rgba(0, 0, 0, .45); }

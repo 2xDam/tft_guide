@@ -260,6 +260,10 @@ function buildStatic(cd, setKey, comps, planner = []) {
     (it.composition || []).forEach(addItem);
   };
   usedItems.forEach(addItem);
+  // Alle baubaren Items des Sets, damit auch gespielte Partien vollständig angezeigt werden
+  cd.items
+    .filter((i) => /^DA_/.test(i.apiName) && !i.isAugment && i.composition?.length === 2 && i.icon)
+    .forEach((i) => addItem(i.apiName));
   cd.items.filter((i) => /_Component_/.test(i.apiName) && /^DA_|^TFT_Item_/.test(i.apiName)).forEach((i) => addItem(i.apiName));
   const components = Object.keys(items).filter((id) => /_Component_|^TFT_Item_(BFSword|RecurveBow|NeedlesslyLargeRod|TearOfTheGoddess|ChainVest|NegatronCloak|GiantsBelt|SparringGloves|Spatula|FryingPan)$/.test(id));
 
