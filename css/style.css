@@ -110,6 +110,21 @@ main { max-width: 1180px; margin: 0 auto; padding: var(--gap) var(--pad); min-he
 .fav li { display: flex; justify-content: space-between; gap: 8px; }
 .fav span { color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .issues b { color: var(--bad); font-variant-numeric: tabular-nums; }
+.ana-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: var(--gap); margin-top: 8px; }
+.ana { padding: 8px 10px; border-radius: 8px; background: var(--panel-2); border-left: 3px solid var(--good); }
+.ana.weak { border-left-color: var(--bad); }
+.ana h3 { margin: 0 0 6px; }
+.ana h3 + ul + h3, .ana p + h3 { margin-top: 10px; }
+.ana ul { list-style: none; padding: 0; display: grid; gap: 6px; font-size: .84rem; }
+.ana li p { color: var(--muted); font-size: .8rem; }
+.ana.weak b { color: var(--bad); } .ana.strong li > b { color: var(--good); }
+.fav .up { color: var(--good); } .fav .down { color: var(--bad); }
+.cmp { width: 100%; border-collapse: collapse; font-size: .86rem; font-variant-numeric: tabular-nums; margin-bottom: 6px; }
+.cmp th { text-align: right; font-size: .62rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 500; padding: 2px 6px; }
+.cmp td { text-align: right; padding: 5px 6px; border-top: 1px solid var(--line); }
+.cmp th:first-child, .cmp td:first-child { text-align: left; }
+.cmp a { text-decoration: none; font-weight: 600; }
+.game-title em { font-style: normal; color: var(--accent); }
 .games { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: var(--gap); align-items: start; }
 .game { display: grid; gap: 8px; }
 .game header { display: flex; gap: 8px; align-items: center; }

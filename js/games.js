@@ -109,84 +109,145 @@ function analyze(m, comp, ctx) {
   return out;
 }
 
-const KEY_LABEL = {
-  level: 'zu niedriges Level für die Comp',
-  'carry-missing': 'Haupt-Carry nicht gefunden',
-  'carry-1star': 'Carry nur auf 1 Stern',
-  'items-few': 'Carry mit weniger als 3 Items',
-  'items-off': 'unpassende Items auf dem Carry',
-  'reroll-none': 'Reroll ohne 3-Sterne-Einheit',
-  gold: 'mit viel Gold ausgeschieden',
+// Schwächen: Bezeichnung und was man dagegen tun kann
+const WEAK = {
+  level: ['Zu niedriges Level für die Comp', 'Gold bis zum Roll-Level zusammenhalten und erst dort rollen – nicht vorher verzetteln.'],
+  'carry-missing': ['Haupt-Carry nicht gefunden', 'Fehlt der Carry nach dem Rolldown, früh auf eine ähnliche Comp mit denselben Items ausweichen.'],
+  'carry-1star': ['Carry nur auf 1 Stern', 'Beim Rolldown zuerst die Carries auf 2 Sterne bringen, erst danach das Board abrunden.'],
+  'items-few': ['Carry mit weniger als 3 Items', 'Komponenten früher zu fertigen Items bauen, auch wenn es nicht der perfekte Build ist.'],
+  'items-off': ['Unpassende Items auf dem Carry', 'Vor dem Bauen die Item-Liste der Comp prüfen und im Karussell gezielt die fehlende Komponente nehmen.'],
+  'reroll-none': ['Reroll ohne 3-Sterne-Einheit', 'Reroll-Comps nur spielen, wenn früh viele Kopien kommen – sonst auf eine Level-Comp wechseln.'],
+  gold: ['Mit viel Gold ausgeschieden', 'Bei wenig Leben Gold ausgeben: rollen oder leveln statt Zinsen sammeln.'],
+};
+const STRONG = {
+  'items-ok': 'Carry mit dem besten Build ausgestattet',
+  'level-ok': 'Level-Ziel der Comp erreicht',
+  'reroll-ok': '3-Sterne-Ziele getroffen',
 };
 
+const fmt = (n, d = 2) => n.toFixed(d).replace('.', ',');
+const shortName = (riotId) => riotId.split('#')[0];
+
+function evalPlayer(player, ctx, unitKey, itemKey) {
+  const { data } = ctx;
+  const games = player.matches.map((raw) => {
+    const m = { ...raw, units: raw.units.map((u) => ({ ...u, id: unitKey(u.id), items: u.items.map(itemKey) })) };
+    const current = !m.set || m.set === data.set;
+    const found = current && ANALYZED.has(m.queue) ? findComp(m.units.map((u) => u.id), data.comps) : null;
+    return { m, current, player: player.riotId, comp: found?.comp || null, findings: found ? analyze(m, found.comp, ctx) : [] };
+  });
+  const rated = games.filter((g) => ANALYZED.has(g.m.queue) && g.current);
+  const n = rated.length;
+  return {
+    riotId: player.riotId,
+    games,
+    rated: n,
+    analyzed: games.filter((g) => g.comp).length,
+    avg: n ? rated.reduce((a, g) => a + g.m.placement, 0) / n : null,
+    top4: n ? rated.filter((g) => g.m.placement <= 4).length / n : null,
+    wins: rated.filter((g) => g.m.placement === 1).length,
+  };
+}
+
+// Stärken und Schwächen über alle ausgewerteten Spiele eines Spielers
+function analysisHtml(p, ctx) {
+  const { esc, compName } = ctx;
+  if (!p.analyzed) return '<p class="hint">Noch keine Partie mit passender Meta-Comp – keine Analyse möglich.</p>';
+  const count = (kind, table) => {
+    const map = new Map();
+    for (const g of p.games) {
+      const seen = new Set();
+      for (const f of g.findings) if (f.kind === kind && table[f.key] && !seen.has(f.key)) {
+        seen.add(f.key);
+        map.set(f.key, (map.get(f.key) || 0) + 1);
+      }
+    }
+    return [...map.entries()].sort((a, b) => b[1] - a[1]);
+  };
+  const weak = count('bad', WEAK).slice(0, 4);
+  const strong = count('good', STRONG).slice(0, 3);
+
+  const byComp = new Map();
+  for (const g of p.games) if (g.comp) {
+    const e = byComp.get(g.comp.id) || { comp: g.comp, n: 0, sum: 0 };
+    e.n++;
+    e.sum += g.m.placement;
+    byComp.set(g.comp.id, e);
+  }
+  const comps = [...byComp.values()].sort((a, b) => b.n - a.n).slice(0, 4);
+
+  return `<div class="ana-grid">
+    <div class="ana weak"><h3>Das kostet Plätze</h3>
+      ${weak.length ? `<ul>${weak.map(([k, n]) => `<li><b>${n} von ${p.analyzed} Spielen:</b> ${esc(WEAK[k][0])}<p>${esc(WEAK[k][1])}</p></li>`).join('')}</ul>` : '<p class="hint">Keine wiederkehrenden Fehler gefunden.</p>'}
+    </div>
+    <div class="ana strong"><h3>Das läuft gut</h3>
+      ${strong.length ? `<ul>${strong.map(([k, n]) => `<li><b>${n} von ${p.analyzed} Spielen:</b> ${esc(STRONG[k])}</li>`).join('')}</ul>` : '<p class="hint">Noch nichts Auffälliges.</p>'}
+      ${comps.length ? `<h3>Gespielte Comps</h3><ul class="fav">${comps.map((f) => {
+        const diff = f.sum / f.n - f.comp.avg;
+        return `<li><a href="#/comp/${f.comp.id}">${esc(compName(f.comp))}</a><span class="${diff <= 0 ? 'up' : 'down'}">${f.n}× · Ø ${fmt(f.sum / f.n, 1)} (Meta ${fmt(f.comp.avg, 1)})</span></li>`;
+      }).join('')}</ul>` : ''}
+    </div>
+  </div>`;
+}
+
 export function renderGames(app, ctx, sel) {
-  const { data, db, esc, img, compName } = ctx;
+  const { db, esc } = ctx;
   const all = ctx.matches;
-  const players = (all.players || []).filter((p) => p.matches?.length);
-  if (!players.length) {
+  const raw = (all.players || []).filter((p) => p.matches?.length);
+  if (!raw.length) {
     app.innerHTML = setupHtml(all, esc);
     return;
   }
-  const idx = Math.min(players.length - 1, Math.max(0, Number(sel) || 0));
-  const player = players[idx];
   const unitKey = lookup(Object.keys(db.units));
   const itemKey = lookup(Object.keys(db.items));
-
-  const games = player.matches.map((raw) => {
-    const m = {
-      ...raw,
-      units: raw.units.map((u) => ({ ...u, id: unitKey(u.id), items: u.items.map(itemKey) })),
-    };
-    const current = !m.set || m.set === data.set;
-    const found = current && ANALYZED.has(m.queue) ? findComp(m.units.map((u) => u.id), data.comps) : null;
-    return { m, current, comp: found?.comp || null, findings: found ? analyze(m, found.comp, ctx) : [] };
-  });
-
-  const rated = games.filter((g) => ANALYZED.has(g.m.queue) && g.current);
-  const avg = rated.length ? rated.reduce((a, g) => a + g.m.placement, 0) / rated.length : null;
-  const top4 = rated.length ? rated.filter((g) => g.m.placement <= 4).length / rated.length : null;
-  const wins = rated.filter((g) => g.m.placement === 1).length;
-
-  const issues = new Map();
-  for (const g of games) for (const f of g.findings) if (f.kind === 'bad' && KEY_LABEL[f.key]) issues.set(f.key, (issues.get(f.key) || 0) + 1);
-  const analyzed = games.filter((g) => g.comp).length;
-  const topIssues = [...issues.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
-
-  const compCount = new Map();
-  for (const g of games) if (g.comp) {
-    const e = compCount.get(g.comp.id) || { comp: g.comp, n: 0, sum: 0 };
-    e.n++;
-    e.sum += g.m.placement;
-    compCount.set(g.comp.id, e);
-  }
-  const favs = [...compCount.values()].sort((a, b) => b.n - a.n).slice(0, 3);
-
-  const fmt = (n, d = 2) => n.toFixed(d).replace('.', ',');
+  const players = raw.map((p) => evalPlayer(p, ctx, unitKey, itemKey));
+  const idx = sel == null || sel === 'alle' || players.length === 1 && sel == null ? (players.length === 1 ? 0 : -1) : Math.min(players.length - 1, Math.max(0, Number(sel) || 0));
+  const one = idx >= 0 ? players[idx] : null;
   const date = (t) => new Date(t).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
 
+  const filter = players.length > 1 ? `<div class="filters"><div class="seg scroll">
+      <a class="segl${idx < 0 ? ' on' : ''}" href="#/spiele/alle">Alle</a>
+      ${players.map((p, i) => `<a class="segl${i === idx ? ' on' : ''}" href="#/spiele/${i}">${esc(shortName(p.riotId))}</a>`).join('')}
+    </div></div>` : '';
+
+  let body;
+  if (one) {
+    body = `<section class="card games-sum">
+        <div class="card-head"><h2>Analyse · ${esc(one.riotId)}</h2><span class="badge">${one.analyzed} von ${one.games.length} Spielen ausgewertet</span></div>
+        <dl class="plan-sum">
+          <div><dt>Spiele</dt><dd>${one.rated}</dd></div>
+          <div><dt>Ø Platz</dt><dd>${one.avg == null ? '–' : fmt(one.avg)}</dd></div>
+          <div><dt>Top 4</dt><dd>${one.top4 == null ? '–' : `${Math.round(one.top4 * 100)} %`}</dd></div>
+          <div><dt>Siege</dt><dd>${one.wins}</dd></div>
+        </dl>
+        ${analysisHtml(one, ctx)}
+      </section>
+      <section class="games">${one.games.map((g) => gameCard(g, ctx, date, false)).join('')}</section>`;
+  } else {
+    const games = players.flatMap((p) => p.games).sort((a, b) => b.m.time - a.m.time).slice(0, 60);
+    body = `<section class="card games-sum">
+        <div class="card-head"><h2>Vergleich</h2></div>
+        <table class="cmp"><thead><tr><th>Spieler</th><th>Spiele</th><th>Ø Platz</th><th>Top 4</th><th>Siege</th></tr></thead>
+        <tbody>${[...players].sort((a, b) => (a.avg ?? 9) - (b.avg ?? 9)).map((p) => `<tr>
+          <td><a href="#/spiele/${players.indexOf(p)}">${esc(shortName(p.riotId))}</a></td><td>${p.rated}</td>
+          <td>${p.avg == null ? '–' : fmt(p.avg)}</td><td>${p.top4 == null ? '–' : `${Math.round(p.top4 * 100)} %`}</td><td>${p.wins}</td></tr>`).join('')}</tbody></table>
+        <p class="hint">Spieler antippen für die persönliche Analyse.</p>
+      </section>
+      <section class="games">${games.map((g) => gameCard(g, ctx, date, true)).join('')}</section>`;
+  }
+
+  const failed = (all.players || []).filter((p) => p.error);
   app.innerHTML = `
     <section class="picker-head">
-      <h1>Meine Spiele</h1>
-      <p class="sub">Auswertung des Endstands jeder Partie gegen die Meta-Daten. Stand: ${esc(new Date(all.updated).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }))}</p>
-      ${players.length > 1 ? `<div class="filters"><div class="seg scroll">${players.map((p, i) =>
-        `<a class="segl${i === idx ? ' on' : ''}" href="#/spiele/${i}">${esc(p.riotId.split('#')[0])}</a>`).join('')}</div></div>` : `<p class="sub">${esc(player.riotId)}</p>`}
+      <h1>Spiele &amp; Analyse</h1>
+      <p class="sub">Auswertung des Endstands jeder Partie gegen die Meta-Daten · Stand ${esc(new Date(all.updated).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }))}</p>
+      ${filter}
+      ${failed.length ? `<p class="callout">Nicht abrufbar: ${failed.map((p) => `${esc(p.riotId)} (${esc(p.error)})`).join(', ')}</p>` : ''}
     </section>
-    <section class="card games-sum">
-      <dl class="plan-sum">
-        <div><dt>Spiele</dt><dd>${rated.length}</dd></div>
-        <div><dt>Ø Platz</dt><dd>${avg == null ? '–' : fmt(avg)}</dd></div>
-        <div><dt>Top 4</dt><dd>${top4 == null ? '–' : `${Math.round(top4 * 100)} %`}</dd></div>
-        <div><dt>Siege</dt><dd>${wins}</dd></div>
-      </dl>
-      ${favs.length ? `<h3>Meistgespielt</h3><ul class="fav">${favs.map((f) =>
-        `<li><a href="#/comp/${f.comp.id}">${esc(compName(f.comp))}</a><span>${f.n}× · Ø ${fmt(f.sum / f.n, 1)}</span></li>`).join('')}</ul>` : ''}
-      ${topIssues.length ? `<h3>Wiederkehrende Muster <small>in ${analyzed} ausgewerteten Spielen</small></h3>
-        <ul class="issues">${topIssues.map(([k, n]) => `<li><b>${n}×</b> ${esc(KEY_LABEL[k])}</li>`).join('')}</ul>` : ''}
-    </section>
-    <section class="games">${games.map((g) => gameCard(g, ctx, date)).join('')}</section>`;
+    ${body}`;
 }
 
-function gameCard(g, ctx, date) {
+function gameCard(g, ctx, date, showPlayer) {
   const { db, esc, img, compName } = ctx;
   const { m, comp, findings } = g;
   const units = [...m.units].sort((a, b) => (db.units[a.id]?.cost || 0) - (db.units[b.id]?.cost || 0));
@@ -197,7 +258,7 @@ function gameCard(g, ctx, date) {
       <span class="place ${place}">${m.placement}</span>
       <div class="game-title">
         ${comp ? `<a href="#/comp/${comp.id}">${esc(compName(comp))}</a>` : `<b>${g.current ? 'Eigene Comp' : 'Älteres Set'}</b>`}
-        <small>${date(m.time)} · ${esc(QUEUES[m.queue] || 'Sondermodus')} · Level ${m.level} · ${m.goldLeft} Gold übrig</small>
+        <small>${showPlayer ? `<em>${esc(shortName(g.player))}</em> · ` : ''}${date(m.time)} · ${esc(QUEUES[m.queue] || 'Sondermodus')} · Level ${m.level} · ${m.goldLeft} Gold übrig</small>
       </div>
     </header>
     <div class="unit-row">${units.map((u) => {
@@ -214,7 +275,7 @@ function gameCard(g, ctx, date) {
 
 function setupHtml(all, esc) {
   const errs = (all.players || []).filter((p) => p.error);
-  return `<section class="picker-head"><h1>Meine Spiele</h1>
+  return `<section class="picker-head"><h1>Spiele &amp; Analyse</h1>
     <p class="sub">Noch keine Spiele vorhanden. So richtest du den Abruf ein:</p></section>
     <section class="card setup"><ol>
       <li>Auf <a href="https://developer.riotgames.com" target="_blank" rel="noopener">developer.riotgames.com</a> anmelden und einen persönlichen API-Schlüssel beantragen („Register Product → Personal API Key“).</li>

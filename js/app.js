@@ -544,7 +544,7 @@ function update(comp) {
 
 // ---------- Routing ----------
 function route() {
-  const g = location.hash.match(/^#\/spiele(?:\/(\d+))?/);
+  const g = location.hash.match(/^#\/spiele(?:\/(\d+|alle))?/);
   if (g) {
     app.onclick = null;
     app.onchange = null;
