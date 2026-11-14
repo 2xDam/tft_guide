@@ -4,6 +4,7 @@ import {
   buildTips, upcoming, gamePlan,
 } from './tips.js';
 import { loadMatches, renderGames } from './games.js';
+import { renderFreestyle } from './freestyle.js';
 
 const app = document.getElementById('app');
 const STORE = 'tft-guide-state-v1';
@@ -577,6 +578,11 @@ function update(comp) {
 
 // ---------- Routing ----------
 function route() {
+  if (location.hash.startsWith('#/freestyle')) {
+    renderFreestyle(app, { data, db, esc, img, compName, tier });
+    window.scrollTo(0, 0);
+    return;
+  }
   const g = location.hash.match(/^#\/spiele(?:\/(\d+|alle))?/);
   if (g) {
     app.onclick = null;
