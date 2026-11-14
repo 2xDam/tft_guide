@@ -252,12 +252,12 @@ export function upcoming(comp, db, st, count = 5) {
     const type = roundType(r);
     const notes = [];
     const lvl = sched.find((e) => e.i === i);
-    if (lvl) notes.push(lvl.level === rollLvl && !isReroll(comp) ? `Level ${lvl.level} + Rolldown` : `Level ${lvl.level}`);
+    if (lvl && lvl.level > st.level) notes.push(lvl.level === rollLvl && !isReroll(comp) ? `Level ${lvl.level} + Rolldown` : `Level ${lvl.level}`);
     if (isAugmentRound(r)) notes.push('Augment wählen');
     if (type === 'carousel' && comps[0]) notes.push(`${db.items[comps[0].id]?.name || 'Komponente'} nehmen`);
     if (type === 'pve' && r.s >= 2) notes.push('Beute, Items bauen');
     if (!notes.length) notes.push(st.gold < 50 ? 'Sparen' : 'Stärkstes Board spielen');
-    out.push({ ...r, type, notes, level: lvl?.level || null });
+    out.push({ ...r, type, notes });
   }
   return out;
 }

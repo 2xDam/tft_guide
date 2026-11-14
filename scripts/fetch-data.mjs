@@ -254,7 +254,7 @@ function buildStatic(cd, setKey, comps) {
   cd.items.filter((i) => /_Component_/.test(i.apiName) && /^DA_|^TFT_Item_/.test(i.apiName)).forEach((i) => addItem(i.apiName));
   const components = Object.keys(items).filter((id) => /_Component_|^TFT_Item_(BFSword|RecurveBow|NeedlesslyLargeRod|TearOfTheGoddess|ChainVest|NegatronCloak|GiantsBelt|SparringGloves|Spatula|FryingPan)$/.test(id));
 
-  return { setName: set.name, units, traits, items, components, iconBase: `${CDRAGON}/game/` };
+  return { setName: `Set ${setNum}`, units, traits, items, components, iconBase: `${CDRAGON}/game/` };
 }
 
 async function main() {

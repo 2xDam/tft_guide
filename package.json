@@ -1,0 +1,14 @@
+{
+  "name": "tft-guide",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "TFT-Guide: Rundentipps, Aufstellung, Items und Level-Zeitplan für Meta-Comps",
+  "scripts": {
+    "fetch": "node scripts/fetch-data.mjs",
+    "start": "python3 -m http.server 4173"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
