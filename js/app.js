@@ -1,11 +1,11 @@
 import {
   ROUNDS, TYPE_LABEL, roundIndex, roundType, isAugmentRound, schedule, standardSchedule, targetLevel,
-  rollLevel, isReroll, styleLabel, carries, threeStarTargets, componentPriority, emblemNeed,
+  rollLevel, isReroll, styleLabel, carries, threeStarTargets, componentPriority, missingComponents, emblemNeed,
   buildTips, upcoming, gamePlan,
 } from './tips.js';
 import { loadMatches, renderGames } from './games.js';
 import { renderFreestyle, freestyleActive, freestyleRank, freestyleHandover, freestyleCount } from './freestyle.js';
-import { addHistory } from './history.js';
+import { putHistory } from './history.js';
 
 const app = document.getElementById('app');
 const STORE = 'tft-guide-state-v1';
@@ -233,9 +233,8 @@ function compCard(c) {
 
 // ---------- Board ----------
 // MetaTFT zählt Felder 1–28 von hinten rechts; Index 0 ist vorne links.
-function layoutBoard(comp, units) {
-  const cells = new Array(28).fill(null);
-  const todo = [...new Set(units)].filter(isReal);
+function layoutBoard(comp, units, cells = new Array(28).fill(null)) {
+  const todo = [...new Set(units)].filter((u) => isReal(u) && !cells.includes(u));
   const pairs = [];
   for (const u of todo) for (const [cell, count] of comp.positions[u] || comp.positions[unit(u).alias] || []) pairs.push([u, 28 - cell, count]);
   pairs.sort((a, b) => b[2] - a[2]);
@@ -371,8 +370,9 @@ function renderBuilds(comp) {
       for (const c of parts) need.set(c, (need.get(c) || 0) + 1);
     });
   }
-  const rank = new Map(prio.map((p, i) => [p.id, i]));
-  const missing = [...need.entries()].sort((a, b) => b[1] - a[1] || (rank.get(a[0]) ?? 99) - (rank.get(b[0]) ?? 99));
+  // Reihenfolge wie beim Karussell-Tipp: zuerst, was Trägern fehlt, die schon auf dem Board stehen
+  const rank = new Map(missingComponents(comp, db, game).map((p, i) => [p.id, i]));
+  const missing = [...need.entries()].sort((a, b) => (rank.get(a[0]) ?? 99) - (rank.get(b[0]) ?? 99) || b[1] - a[1]);
 
   return `<div class="builds-head"><h3>Items <small>antippen = habe ich</small></h3><span class="badge">${total - open} / ${total} fertig</span></div>
     <div class="missing"><span class="lbl">Fehlt noch</span>${missing.length
@@ -384,6 +384,34 @@ function renderBuilds(comp) {
     ${alts ? `<details class="alts"><summary>Alternative Builds</summary>${alts}</details>` : ''}`;
 }
 
+// Einheiten, die erst das Board des nächsten Levels vorsieht. Sie werden blass an ihrem Platz
+// gezeigt; wer eine schon spielt, tippt sie an. Ist der Platz vergeben, verschwinden die übrigen
+// bis zum nächsten Level. Bei vollem Board weicht dafür ein Lückenfüller.
+function boardPlan(comp, tab, opt) {
+  const n = tab.level + 1;
+  const opts = (tab.early && n <= 7 && comp.boards[n]) || comp.finals[n] || comp.boards[n] || [];
+  // Erst die Einheiten der Ziel-Comp aus dem meistgespielten nächsten Board; gibt es dort keine
+  // neuen, das nächste Board mit der größten Überschneidung. 5-Kosten-Einheiten erst ab Level 8.
+  const fresh = (o) => [...new Set(o.units)].filter((u) => isReal(u) && !opt.units.includes(u) && (unit(u).cost < 5 || tab.level >= 8));
+  let next = opts[0];
+  let cand = next ? fresh(next).filter((u) => comp.units.includes(u)) : [];
+  if (!cand.length && opts.length) {
+    next = [...opts].sort((a, b) => b.units.filter((u) => opt.units.includes(u)).length - a.units.filter((u) => opt.units.includes(u)).length)[0];
+    cand = fresh(next);
+  }
+  cand = cand.sort(byCost).slice(0, 3);
+  const free = Math.max(0, tab.level - opt.units.length);
+  const allowed = cand.length ? Math.min(cand.length, Math.max(1, free)) : 0;
+  const key = `${comp.id}:${tab.level}`;
+  const picks = (game.picks?.[key] || []).filter((u) => cand.includes(u)).slice(0, allowed);
+  // Lückenfüller: stehen im nächsten Board nicht mehr, die billigsten zuerst
+  const fillers = opt.units.filter((u) => isReal(u) && !next?.units.includes(u)).sort(byCost);
+  const drop = new Set(fillers.slice(0, Math.max(0, picks.length - free)));
+  const units = [...opt.units.filter((u) => !drop.has(u)), ...picks];
+  const ghosts = picks.length >= allowed ? [] : cand.filter((u) => !picks.includes(u));
+  return { key, units, ghosts, picks, dropped: [...drop], allowed, nextLevel: tab.level + 1 };
+}
+
 function renderBoard(comp) {
   const tabs = boardOptions(comp);
   let tab = tabs.find((t) => t.key === ui.boardTab);
@@ -393,16 +421,22 @@ function renderBoard(comp) {
       (game.level >= rollLevel(comp) && tabs.find((t) => t.key === 'now')) || tabs[tabs.length - 1];
   }
   const opt = tab.options[Math.min(ui.variant, tab.options.length - 1)] || tab.options[0];
-  const cells = layoutBoard(comp, opt.units);
+  const plan = boardPlan(comp, tab, opt);
+  const cells = layoutBoard(comp, plan.ghosts, layoutBoard(comp, plan.units));
+  const ghost = new Set(plan.ghosts);
   const stars = new Set(threeStarTargets(comp));
-  const traits = activeTraits(opt.units.filter(isReal), opt.traits);
-  const code = teamCode([...opt.units].filter(isReal).sort(byCost));
+  const traits = activeTraits(plan.units.filter(isReal), plan.picks.length ? null : opt.traits);
+  const code = teamCode([...plan.units].filter(isReal).sort(byCost));
 
   const rows = [0, 1, 2, 3].map((row) => `<div class="hex-row${row % 2 ? ' offset' : ''}">${
     cells.slice(row * 7, row * 7 + 7).map((u) => {
       if (!u) return '<div class="hex empty"></div>';
       const un = unit(u);
       const items = comp.builds[u]?.[0].items || [];
+      if (ghost.has(u)) return `<button class="hex-wrap ghost" data-pick="${esc(u)}" data-pickkey="${esc(plan.key)}" title="${esc(un.name)} – kommt mit Level ${plan.nextLevel}. Antippen, wenn du sie schon spielst.">
+        <span class="hex cost-${un.cost}">${img(un.icon, un.name)}</span>
+        <span class="hex-name">${esc(un.name)}</span>
+      </button>`;
       return `<button class="hex-wrap${game.owned[u] ? ' own' : ''}" data-own="${esc(u)}" title="${esc(un.name)}">
         <span class="hex cost-${un.cost}">${img(un.icon, un.name)}</span>
         ${stars.has(u) ? '<span class="stars">★★★</span>' : ''}
@@ -417,6 +451,8 @@ function renderBoard(comp) {
       <div class="seg scroll">${tabs.map((t) => `<button data-tab="${t.key}" class="${t === tab ? 'on' : ''}">${esc(t.label)}</button>`).join('')}</div>
     </div>
     <div class="board">${rows}</div>
+    ${plan.ghosts.length ? `<p class="hint ghost-hint">Blass = kommt mit Level ${plan.nextLevel}. Antippen, wenn du ${plan.allowed > 1 ? 'sie' : 'eine davon'} schon spielst${plan.allowed < plan.ghosts.length + plan.picks.length ? ` (${plan.allowed - plan.picks.length} Platz frei)` : ''}.</p>` : ''}
+    ${plan.picks.length ? `<p class="hint ghost-hint">Vorgezogen: ${plan.picks.map((u) => esc(unit(u).name)).join(', ')}${plan.dropped.length ? ` statt ${plan.dropped.map((u) => esc(unit(u).name)).join(', ')}` : ''}. <button class="link" data-unpick="${esc(plan.key)}">Zurücknehmen</button></p>` : ''}
     <div class="board-foot">
       <span class="hint">${tab.early ? 'Frühes Board' : 'Zielboard'} · antippen = habe ich</span>
       <span class="foot-actions">
@@ -510,8 +546,8 @@ function renderControl(comp) {
     </div>
     <div class="endgame">${ui.ending
       ? `<span>Platzierung</span>${[1, 2, 3, 4, 5, 6, 7, 8].map((n) => `<button data-place="${n}">${n}</button>`).join('')}<button class="ghost" data-end="0">Abbrechen</button>`
-      : `<span class="hint">${ui.flash ? esc(ui.flash) : `${Object.keys(game.log || {}).length} Runden mitgeschrieben`}</span>
-         ${ui.flash ? '<a href="#/spiele/log">Mitschriften ansehen</a>' : '<button class="ghost" data-end="1">Spiel beenden &amp; speichern</button>'}`}
+      : `<span class="hint">${ui.flash ? esc(ui.flash) : `${Object.keys(game.log || {}).length} Runden mitgeschrieben${game.logId ? ' · gespeichert' : ''}`}</span>
+         ${ui.flash ? '<a href="#/spiele/log">Mitschriften ansehen</a>' : '<button class="ghost" data-end="1">Spiel beenden</button>'}`}
     </div>
   </section>`;
 }
@@ -702,7 +738,14 @@ function bindGuide(comp) {
       game.items[d.key] ? delete game.items[d.key] : (game.items[d.key] = true);
       ui.itemInfo = d.item;
     }
-    else if (d.own) game.owned[d.own] ? delete game.owned[d.own] : (game.owned[d.own] = true);
+    else if (d.pick) {
+      game.picks ||= {};
+      game.picks[d.pickkey] = [...(game.picks[d.pickkey] || []), d.pick];
+      game.owned[d.pick] = true;
+    } else if (d.unpick) {
+      for (const u of game.picks?.[d.unpick] || []) delete game.owned[u];
+      delete game.picks[d.unpick];
+    } else if (d.own) game.owned[d.own] ? delete game.owned[d.own] : (game.owned[d.own] = true);
     else if ('reset' in d) {
       game = { ...defaultGame(), compId: comp.id };
       ui.boardTab = '';
@@ -735,11 +778,14 @@ function logRound() {
   game.log[i] = { l: game.level, g: game.gold, h: game.hp, s: game.streak };
 }
 
+// Speichert die Mitschrift. Ohne Platzierung ist es der Zwischenstand des laufenden Spiels,
+// der nach jeder Runde automatisch aktualisiert wird.
 function saveMatchLog(comp, placement) {
   logRound();
   const done = Object.keys(game.items || {}).length;
-  addHistory({
-    id: Date.now(),
+  game.logId ||= Date.now();
+  putHistory({
+    id: game.logId,
     time: Date.now(),
     player,
     compId: comp.id,
@@ -785,6 +831,7 @@ function switchComp(comp, useFreestyle) {
 
 function update(comp) {
   logRound();
+  if (!overview() && Object.keys(game.log || {}).length >= 2) saveMatchLog(comp, null);
   saveGame();
   const y = window.scrollY;
   renderGuide(comp);

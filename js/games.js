@@ -2,7 +2,7 @@
 // Grundlage ist nur der Endstand jeder Partie – Entscheidungen pro Runde liefert Riot nicht.
 
 import { carries, rollLevel, isReroll, threeStarTargets, emblemNeed, styleLabel, ROUNDS } from './tips.js';
-import { loadHistory, removeHistory, analyzeLog, chartSvg } from './history.js';
+import { loadHistory, putHistory, removeHistory, analyzeLog, chartSvg } from './history.js';
 
 const QUEUES = { 1100: 'Ranked', 1090: 'Normal', 1130: 'Hyper Roll', 1160: 'Double Up', 1150: 'Double Up' };
 const ANALYZED = new Set([1090, 1100]);
@@ -315,9 +315,10 @@ function renderLogs(app, ctx, riotPlayers, allLogs) {
           <header>
             <span class="place ${place}">${e.placement || '–'}</span>
             <div class="game-title"><b>${esc(e.compName)}</b>
-              <small><em>${esc(shortName(whoOf(e)))}</em> · ${date(e.time)} · ${esc(e.style || '')} · ${e.log.length} Runden bis ${esc(ROUNDS[last?.i]?.key || '?')} · Items ${e.itemsDone}/${e.itemsTotal}</small></div>
+              <small><em>${esc(shortName(whoOf(e)))}</em> · ${date(e.time)} · ${esc(e.style || '')} · ${e.log.length} Runden bis ${esc(ROUNDS[last?.i]?.key || '?')} · Items ${e.itemsDone}/${e.itemsTotal}${e.placement ? '' : ' · ohne Platzierung'}</small></div>
             <button class="ghost del" data-del="${e.id}" title="Mitschrift löschen">Löschen</button>
           </header>
+          ${e.placement ? '' : `<p class="place-add"><span>Platzierung nachtragen</span>${[1, 2, 3, 4, 5, 6, 7, 8].map((n) => `<button data-setplace="${e.id}" data-n="${n}">${n}</button>`).join('')}</p>`}
           ${chartSvg(e)}
           <p class="legend"><span><i class="dot hp"></i>Leben</span><span><i class="dot gold"></i>Gold</span><span><b class="lvl">7</b> Level-Up</span></p>
           <ul class="findings">${findings.map((f) => `<li class="${f.kind}"><i>${icon[f.kind]}</i>${esc(f.text)}</li>`).join('')}</ul>
@@ -326,7 +327,7 @@ function renderLogs(app, ctx, riotPlayers, allLogs) {
     : `<section class="card setup"><p>Noch keine Mitschrift. So entsteht eine:</p><ol>
         <li>Team wählen und oben auf <b>Runde für Runde</b> stellen.</li>
         <li>Während des Spiels Level, Gold und Leben aktuell halten und mit <b>Weiter</b> zur nächsten Runde gehen.</li>
-        <li>Am Ende <b>Spiel beenden &amp; speichern</b> antippen und die Platzierung wählen.</li>
+        <li>Die Mitschrift wird ab der zweiten Runde automatisch gespeichert. Am Ende <b>Spiel beenden</b> antippen und die Platzierung wählen.</li>
       </ol></section>`}
     ${riotPlayers.length ? '' : `<details class="alts"><summary>Riot-Spiele automatisch abrufen (optional)</summary>${setupHtml(all, esc)}</details>`}`;
 
@@ -335,6 +336,13 @@ function renderLogs(app, ctx, riotPlayers, allLogs) {
     if (f) {
       logWho = f.dataset.logwho;
       renderLogs(app, ctx, riotPlayers, allLogs);
+      return;
+    }
+    const sp = ev.target.closest('button[data-setplace]');
+    if (sp) {
+      const entry = loadHistory().find((e) => String(e.id) === sp.dataset.setplace);
+      if (entry) putHistory({ ...entry, placement: Number(sp.dataset.n) });
+      renderLogs(app, ctx, riotPlayers, loadHistory());
       return;
     }
     const b = ev.target.closest('button[data-del]');

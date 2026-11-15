@@ -88,6 +88,36 @@ export function componentPriority(comp, db) {
     .map(([id, s]) => ({ id, score: s, need: need.get(id) }));
 }
 
+// Komponenten, die für die noch nicht abgehakten Items der Carries fehlen.
+// st.items merkt sich abgehakte Items unter „Einheit:Position“. Wichtigste zuerst.
+export function missingComponents(comp, db, st) {
+  const have = st?.items || {};
+  const owned = st?.owned || {};
+  const score = new Map();
+  const need = new Map();
+  const own = new Map(); // davon für Träger, die schon auf dem Board stehen
+  const forUnits = new Map();
+  carries(comp).forEach((unit, idx) => {
+    const weight = idx === 0 ? 3 : idx === 1 ? 2 : 1;
+    comp.builds[unit][0].items.forEach((item, n) => {
+      if (have[`${unit}:${n}`]) return;
+      for (const c of db.items[item]?.recipe || []) {
+        score.set(c, (score.get(c) || 0) + weight);
+        need.set(c, (need.get(c) || 0) + 1);
+        if (owned[unit]) {
+          own.set(c, (own.get(c) || 0) + 1);
+          if (!forUnits.has(c)) forUnits.set(c, []);
+          if (!forUnits.get(c).includes(unit)) forUnits.get(c).push(unit);
+        }
+      }
+    });
+  });
+  // Zuerst, was Trägern fehlt, die man schon hat; dann, was insgesamt am häufigsten fehlt.
+  return [...score.entries()]
+    .map(([id, sc]) => ({ id, score: sc, need: need.get(id), own: own.get(id) || 0, units: forUnits.get(id) || [] }))
+    .sort((a, b) => b.own - a.own || b.need - a.need || b.score - a.score);
+}
+
 export function emblemNeed(comp, db) {
   const main = carries(comp)[0];
   if (!main) return null;
@@ -114,7 +144,8 @@ export function buildTips(comp, db, st) {
   const cs = carries(comp);
   const carryNames = names(cs.slice(0, 2), db);
   const stars = threeStarTargets(comp);
-  const comps = componentPriority(comp, db);
+  const comps = missingComponents(comp, db, st);
+  const anyChecked = Object.values(st.items || {}).some(Boolean);
   const compName = (c) => db.items[c.id]?.name || c.id;
   const emblem = emblemNeed(comp, db);
   const type = roundType(r);
@@ -122,10 +153,14 @@ export function buildTips(comp, db, st) {
   const rollEntry = sched.find((e) => e.level === rollLvl);
 
   // --- Ereignis dieser Runde ---
-  if (type === 'carousel' && comps.length) {
+  if (type === 'carousel' && !comps.length) {
+    add('mid', 'Karussell', 'Alle Items abgehakt – freie Wahl',
+      'Nimm eine Einheit, die dir noch fehlt, oder eine Komponente für ein Zusatz-Item auf einem weiteren Träger.');
+  } else if (type === 'carousel') {
     const alt = comps[1] ? ` Alternativ: ${compName(comps[1])}${comps[2] ? ` oder ${compName(comps[2])}` : ''}.` : '';
     add('high', 'Karussell', `Nimm ${compName(comps[0])}`,
-      `Die Komponente steckt in den meisten Items deiner Carries.${alt}` +
+      `${comps[0].own ? `Fehlt dir noch ${comps[0].own}× für ${listDe(names(comps[0].units, db))} – die Einheit hast du schon.`
+        : anyChecked ? `Fehlt dir noch ${comps[0].need}× für die offenen Items deiner Carries.` : 'Die Komponente steckt in den meisten Items deiner Carries.'}${alt}` +
       (emblem && emblem.recipe.some((c) => /Spatula|FryingPan/.test(c))
         ? ` Liegt ein ${listDe(emblem.recipe.filter((c) => /Spatula|FryingPan/.test(c)).map((c) => db.items[c]?.name))} aus, hat er Vorrang – du brauchst das ${db.items[emblem.item]?.name}.`
         : ''));
@@ -244,7 +279,16 @@ export function buildTips(comp, db, st) {
 export function upcoming(comp, db, st, count = 5) {
   const ri = roundIndex(st.stage, st.round);
   const sched = schedule(comp);
-  const comps = componentPriority(comp, db);
+  // Jedes weitere Karussell rechnet damit, dass die vorher empfohlene Komponente geholt wurde.
+  const open = missingComponents(comp, db, st).map((c) => ({ ...c }));
+  const nextComponent = () => {
+    const c = open.find((x) => x.need > 0);
+    if (!c) return null;
+    c.need--;
+    if (c.own > 0) c.own--;
+    open.sort((a, b) => b.own - a.own || b.need - a.need || b.score - a.score);
+    return c;
+  };
   const rollLvl = rollLevel(comp);
   const out = [];
   for (let i = ri + 1; i < ROUNDS.length && out.length < count; i++) {
@@ -254,7 +298,10 @@ export function upcoming(comp, db, st, count = 5) {
     const lvl = sched.find((e) => e.i === i);
     if (lvl && lvl.level > st.level) notes.push(lvl.level === rollLvl && !isReroll(comp) ? `Level ${lvl.level} + Rolldown` : `Level ${lvl.level}`);
     if (isAugmentRound(r)) notes.push('Augment wählen');
-    if (type === 'carousel' && comps[0]) notes.push(`${db.items[comps[0].id]?.name || 'Komponente'} nehmen`);
+    if (type === 'carousel') {
+      const c = nextComponent();
+      notes.push(c ? `${db.items[c.id]?.name || 'Komponente'} nehmen` : 'Items komplett – freie Wahl');
+    }
     if (type === 'pve' && r.s >= 2) notes.push('Beute, Items bauen');
     if (!notes.length) notes.push(st.gold < 50 ? 'Sparen' : 'Stärkstes Board spielen');
     out.push({ ...r, type, notes });

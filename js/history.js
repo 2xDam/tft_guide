@@ -22,6 +22,15 @@ function store(list) {
 export function addHistory(entry) {
   store([entry, ...loadHistory()]);
 }
+// Legt die Mitschrift an oder ersetzt die mit derselben Nummer (laufendes Spiel).
+export function putHistory(entry) {
+  const list = loadHistory();
+  const at = list.findIndex((e) => String(e.id) === String(entry.id));
+  // Eine nachgetragene Platzierung bleibt, wenn das laufende Spiel weiter mitschreibt.
+  if (at >= 0) list[at] = { ...entry, placement: entry.placement ?? list[at].placement ?? null };
+  else list.unshift(entry);
+  store(list);
+}
 export function removeHistory(id) {
   store(loadHistory().filter((e) => String(e.id) !== String(id)));
 }

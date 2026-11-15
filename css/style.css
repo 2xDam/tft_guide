@@ -432,7 +432,7 @@ main { max-width: 1180px; margin: 0 auto; padding: var(--gap) var(--pad); min-he
   .guide-grid { grid-template-columns: minmax(0, 1fr); }
   .col { display: contents; }
   .control { order: 1; position: sticky; top: var(--safe-top); z-index: 9; border-radius: 0 0 var(--radius) var(--radius); margin: 0 calc(var(--pad) * -1); border-width: 0 0 1px; box-shadow: 0 6px 14px rgba(0, 0, 0, .45); }
-  .tips { order: 2; } .board-card { order: 3; } .alts-card { order: 4; } .upcoming { order: 5; } .levels { order: 6; }
+  .tips { order: 2; } .board-card { order: 3; } .upcoming { order: 4; } .alts-card { order: 5; } .levels { order: 6; }
   .overview .board-card { order: 1; } .plan { order: 2; } .overview .alts-card { order: 3; }
   .topnav { margin-left: 2px; gap: 0; } .topnav a { padding: 3px 6px; font-size: .78rem; }
   .fs-unit { width: 40px; } .fs-unit img, .fs-unit .noimg { width: 30px; height: 30px; }
@@ -467,3 +467,13 @@ main { max-width: 1180px; margin: 0 auto; padding: var(--gap) var(--pad); min-he
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
 @media (max-width: 480px) { .brand span { display: none; } }
+
+/* Einheiten des nächsten Levels: blass an ihrem Platz, antippbar */
+.hex-wrap.ghost { opacity: .42; filter: grayscale(.6); }
+.hex-wrap.ghost::after { content: "+"; position: absolute; top: 0; right: -2px; z-index: 2; display: grid; place-items: center; width: calc(var(--hex) * .34); height: calc(var(--hex) * .34); border-radius: 50%; background: var(--panel-2); border: 1px solid var(--muted); color: var(--text); font-size: calc(var(--hex) * .26); font-weight: 700; line-height: 1; }
+@media (hover: hover) { .hex-wrap.ghost:hover { opacity: .8; filter: none; } }
+.ghost-hint { margin-top: 4px; }
+.link { border: 0; background: none; padding: 0; color: var(--accent); text-decoration: underline; font-size: inherit; }
+.place-add { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin: 6px 0; font-size: .78rem; color: var(--muted); }
+.place-add span { margin-right: 4px; }
+.place-add button { width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel-2); font-weight: 700; color: var(--text); }

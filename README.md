@@ -47,8 +47,9 @@ veröffentlichte Seite öffentlich einsehbar. Lokal: `RIOT_API_KEY=… npm run m
 - Die Seite lässt sich auf dem Handy zum Startbildschirm hinzufügen (Android: Browsermenü →
   „App installieren“, iPhone: Teilen → „Zum Home-Bildschirm“). Ein Service Worker lädt eigene
   Dateien bei jedem Start frisch und zeigt ohne Netz den zuletzt geladenen Stand.
-- Im Modus „Runde für Runde“ wird jede Runde mitgeschrieben. „Spiel beenden & speichern“ legt
-  den Verlauf auf dem Gerät ab; die Auswertung steht unter Spiele & Analyse → Mitschriften.
+- Im Modus „Runde für Runde“ wird jede Runde mitgeschrieben und der Verlauf automatisch auf dem
+  Gerät gespeichert. „Spiel beenden“ ergänzt die Platzierung; die Auswertung steht unter
+  Spiele & Analyse → Mitschriften.
 - Favoriten (je Spieler), Freestyle-Auswahl und Mitschriften liegen nur im Browser des jeweiligen Geräts.
 
 ## Hinweise
