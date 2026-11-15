@@ -63,8 +63,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, summary:focus-visibl
 .who-dialog form { display: grid; gap: 10px; }
 .who-list { display: grid; gap: 6px; }
 .who-list button { padding: 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); font-weight: 600; font-size: 1rem; text-align: left; }
-.who-list button:hover, .who-list button.on { border-color: var(--accent); }
-.who-list button.on::after { content: "zuletzt"; float: right; font-size: .68rem; font-weight: 400; color: var(--muted); }
+.who-list button.on { border-color: var(--accent); }
+.who-list button:focus { outline: none; }
+.who-list button:focus-visible { outline: 2px solid var(--muted); outline-offset: 1px; }
+@media (hover: hover) { .who-list button:hover { background: var(--line); } }
+.who-list button:active { background: var(--line); }
+.who-list button.on::after { content: "aktuell"; float: right; font-size: .68rem; font-weight: 400; color: var(--muted); }
 .who-other { display: flex; gap: 6px; }
 .who-other input { flex: 1; min-width: 0; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; color: var(--text); font: inherit; }
 .who-other button { border: 1px solid var(--line); background: var(--panel-2); border-radius: 8px; padding: 0 14px; font-weight: 600; }

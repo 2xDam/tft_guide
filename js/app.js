@@ -20,20 +20,32 @@ try {
 } catch { /* privater Modus */ }
 const overview = () => mode === 'overview';
 
-// Favoriten pro Gerät. Schlüssel ist der Comp-Name (Synergie + Einheiten), weil sich die
+// Favoriten pro Gerät und Spieler. Schlüssel ist der Comp-Name (Synergie + Einheiten), weil sich die
 // internen Nummern der Comps bei jedem Daten-Update ändern können.
 const FAVS = 'tft-guide-favs-v1';
 let favs = new Set();
-try {
-  favs = new Set(JSON.parse(localStorage.getItem(FAVS) || '[]'));
-} catch { /* privater Modus */ }
+const favStore = () => (player ? `${FAVS}:${player}` : FAVS);
+function loadFavs() {
+  favs = new Set();
+  try {
+    let raw = localStorage.getItem(favStore());
+    // Favoriten aus der Zeit vor der Spielerauswahl gehen an den ersten Spieler, der sie öffnet.
+    if (raw === null && player && localStorage.getItem(FAVS) !== null) {
+      raw = localStorage.getItem(FAVS);
+      localStorage.setItem(favStore(), raw);
+      localStorage.removeItem(FAVS);
+    }
+    const list = JSON.parse(raw || '[]');
+    if (Array.isArray(list)) favs = new Set(list);
+  } catch { /* privater Modus */ }
+}
 const favKey = (c) => c.name.map((n) => n.id).join('+') || c.id;
 const isFav = (c) => favs.has(favKey(c));
 function toggleFav(c) {
   const k = favKey(c);
   favs.has(k) ? favs.delete(k) : favs.add(k);
   try {
-    localStorage.setItem(FAVS, JSON.stringify([...favs]));
+    localStorage.setItem(favStore(), JSON.stringify([...favs]));
   } catch { /* privater Modus */ }
 }
 const favButton = (c) => `<button class="fav-btn${isFav(c) ? ' on' : ''}" data-fav="${c.id}" aria-pressed="${isFav(c)}" title="${isFav(c) ? 'Favorit entfernen' : 'Als Favorit merken'}">${isFav(c) ? '★' : '☆'}</button>`;
@@ -48,6 +60,7 @@ try {
   player = localStorage.getItem(PLAYER) || '';
 } catch { /* privater Modus */ }
 const shortPlayer = (p) => String(p).split('#')[0];
+loadFavs();
 
 function showWho() {
   const btn = document.getElementById('who');
@@ -73,9 +86,10 @@ function askPlayer(mandatory) {
       localStorage.setItem(PLAYER, player);
       sessionStorage.setItem(PLAYER_OK, '1');
     } catch { /* privater Modus */ }
+    loadFavs();
     dlg.close();
     showWho();
-    if (location.hash.startsWith('#/spiele')) route();
+    route();
   };
   dlg.onclick = (ev) => {
     const b = ev.target.closest('button');

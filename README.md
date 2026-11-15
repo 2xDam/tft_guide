@@ -49,7 +49,7 @@ veröffentlichte Seite öffentlich einsehbar. Lokal: `RIOT_API_KEY=… npm run m
   Dateien bei jedem Start frisch und zeigt ohne Netz den zuletzt geladenen Stand.
 - Im Modus „Runde für Runde“ wird jede Runde mitgeschrieben. „Spiel beenden & speichern“ legt
   den Verlauf auf dem Gerät ab; die Auswertung steht unter Spiele & Analyse → Mitschriften.
-- Favoriten, Freestyle-Auswahl und Mitschriften liegen nur im Browser des jeweiligen Geräts.
+- Favoriten (je Spieler), Freestyle-Auswahl und Mitschriften liegen nur im Browser des jeweiligen Geräts.
 
 ## Hinweise
 
