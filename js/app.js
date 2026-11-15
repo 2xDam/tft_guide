@@ -611,10 +611,25 @@ function renderGuide(comp) {
     <div class="guide-grid${ov ? ' overview' : ''}">
       <div class="col">${ov ? renderPlan(comp) : renderControl(comp) + renderTips(comp) + renderUpcoming(comp)}${renderLevels(comp)}${renderAlternatives(comp)}</div>
       <div class="col">${renderBoard(comp)}</div>
-    </div>`;
+    </div>
+    <button class="to-board" data-toboard aria-label="Zur Aufstellung und Eingabe springen" title="Zur Aufstellung"><span>↑</span>Board</button>`;
   const tl = app.querySelector('.timeline');
   const now = tl?.querySelector('.tl-cell.now');
   if (now) tl.scrollLeft = now.offsetLeft - tl.offsetLeft - tl.clientWidth / 2 + now.offsetWidth / 2;
+}
+
+// Springt zur Aufstellung. Auf dem Handy klebt die Eingabe (Runde, Level, Gold …) oben,
+// deshalb landet das Board direkt darunter; am PC stehen beide nebeneinander ganz oben.
+function toBoard() {
+  const board = app.querySelector('.board-card');
+  if (!board) return;
+  const ctl = app.querySelector('.control');
+  const sticky = ctl && getComputedStyle(ctl).position === 'sticky';
+  const head = app.querySelector('.guide-grid');
+  let y;
+  if (sticky) y = board.getBoundingClientRect().top + window.scrollY - ctl.offsetHeight - parseFloat(getComputedStyle(ctl).top || 0) - 6;
+  else y = Math.min(board.getBoundingClientRect().top, head.getBoundingClientRect().top) + window.scrollY - 8;
+  window.scrollTo(0, Math.max(0, y));
 }
 
 function bindGuide(comp) {
@@ -622,6 +637,10 @@ function bindGuide(comp) {
     const b = ev.target.closest('button');
     if (!b || !app.contains(b)) return;
     const d = b.dataset;
+    if ('toboard' in d) {
+      toBoard();
+      return;
+    }
     if (d.code) {
       copyText(d.code).then((ok) => {
         b.textContent = ok ? 'Kopiert ✓' : d.code;
