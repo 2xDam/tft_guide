@@ -21,7 +21,11 @@
   --gap: 10px;
   --pad: 12px;
   color-scheme: dark;
+  --safe-top: env(safe-area-inset-top, 0px);
 }
+/* iPhone-Webapp: iOS zeichnet unter der Statusleiste einen Weichzeichner, der etwas über den
+   sicheren Bereich hinausreicht. Der Zuschlag hält die Kopfzeile darunter frei. */
+@media (display-mode: standalone) { :root { --safe-top: calc(env(safe-area-inset-top, 0px) + 16px); } }
 
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -44,7 +48,7 @@ summary { cursor: pointer; }
 button:focus-visible, a:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* iPhone als Web-App: Die Statusleiste liegt über der Seite. Der Streifen hält sie frei. */
-body::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top); background: var(--bg); z-index: 30; }
+body::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: var(--safe-top); background: var(--bg); z-index: 30; }
 .to-board {
   position: fixed; right: calc(10px + env(safe-area-inset-right)); bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 20;
   width: 52px; height: 57px; padding: 0; border: 0; background: none; color: var(--accent);
@@ -58,10 +62,10 @@ body::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: 
 .to-board span { display: block; font-size: 1rem; line-height: 1; }
 .topbar {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: calc(6px + env(safe-area-inset-top)) var(--pad) 6px;
+  padding: calc(6px + var(--safe-top)) var(--pad) 6px;
   border-bottom: 1px solid var(--line);
 }
-.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; text-decoration: none; color: var(--accent); }
+.brand { display: flex; align-items: center; gap: 8px; flex: none; white-space: nowrap; font-weight: 700; text-decoration: none; color: var(--accent); }
 .brand span { color: var(--text); }
 .topnav { display: flex; gap: 4px; margin-right: auto; margin-left: 8px; }
 .topnav a { color: var(--muted); text-decoration: none; font-size: .82rem; padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
@@ -422,9 +426,12 @@ main { max-width: 1180px; margin: 0 auto; padding: var(--gap) var(--pad); min-he
 @media (max-width: 860px) {
   :root { --gap: 6px; --pad: 8px; }
   .topbar-meta { display: none; }
+  .topbar { gap: 6px; }
+  .topnav { flex: none; }
+  .who { flex: 0 1 auto; min-width: 44px; }
   .guide-grid { grid-template-columns: minmax(0, 1fr); }
   .col { display: contents; }
-  .control { order: 1; position: sticky; top: env(safe-area-inset-top); z-index: 9; border-radius: 0 0 var(--radius) var(--radius); margin: 0 calc(var(--pad) * -1); border-width: 0 0 1px; box-shadow: 0 6px 14px rgba(0, 0, 0, .45); }
+  .control { order: 1; position: sticky; top: var(--safe-top); z-index: 9; border-radius: 0 0 var(--radius) var(--radius); margin: 0 calc(var(--pad) * -1); border-width: 0 0 1px; box-shadow: 0 6px 14px rgba(0, 0, 0, .45); }
   .tips { order: 2; } .board-card { order: 3; } .alts-card { order: 4; } .upcoming { order: 5; } .levels { order: 6; }
   .overview .board-card { order: 1; } .plan { order: 2; } .overview .alts-card { order: 3; }
   .topnav { margin-left: 2px; gap: 0; } .topnav a { padding: 3px 6px; font-size: .78rem; }
@@ -458,3 +465,5 @@ main { max-width: 1180px; margin: 0 auto; padding: var(--gap) var(--pad); min-he
 }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+@media (max-width: 480px) { .brand span { display: none; } }
