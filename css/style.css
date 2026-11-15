@@ -74,20 +74,20 @@ body::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: 
 
 .who { border: 1px solid var(--accent); background: none; color: var(--accent); border-radius: 99px; padding: 2px 10px; font-size: .78rem; font-weight: 600; white-space: nowrap; max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
 .who::before { content: "● "; font-size: .6rem; vertical-align: middle; }
-.who-dialog { border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: var(--text); padding: 18px; width: min(360px, calc(100vw - 32px)); }
-.who-dialog::backdrop { background: rgba(0, 0, 0, .7); }
-.who-dialog h2 { font-size: 1.1rem; text-transform: none; letter-spacing: 0; color: var(--text); }
+.who-dialog { border: 1px solid var(--line); border-radius: 16px; background: var(--panel); color: var(--text); padding: 20px 16px 16px; width: min(340px, calc(100vw - 40px)); box-shadow: 0 20px 50px rgba(0, 0, 0, .7); outline: none; }
+.who-dialog::backdrop { background: rgba(8, 8, 8, .88); }
+.who-dialog h2 { font-size: 1.15rem; text-transform: none; letter-spacing: 0; color: var(--text); text-align: center; }
+.who-dialog .hint { text-align: center; color: var(--muted); font-size: .78rem; margin-top: -4px; }
 .who-dialog form { display: grid; gap: 10px; }
-.who-list { display: grid; gap: 6px; }
-.who-list button { padding: 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); font-weight: 600; font-size: 1rem; text-align: left; }
-.who-list button.on { border-color: var(--accent); }
-.who-list button:focus { outline: none; }
-.who-list button:focus-visible { outline: 2px solid var(--muted); outline-offset: 1px; }
+.who-list { display: grid; gap: 6px; margin-top: 4px; }
+.who-list button { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 11px 14px; border-radius: 10px; border: 1px solid transparent; background: var(--panel-2); font-weight: 600; font-size: .95rem; text-align: left; outline: none; -webkit-tap-highlight-color: transparent; }
+.who-list button.on { border-color: var(--accent); background: #2a2415; color: var(--accent); }
+.who-list button:focus-visible { outline: none; }
 @media (hover: hover) { .who-list button:hover { background: var(--line); } }
 .who-list button:active { background: var(--line); }
-.who-list button.on::after { content: "aktuell"; float: right; font-size: .68rem; font-weight: 400; color: var(--muted); }
-.who-other { display: flex; gap: 6px; }
-.who-other input { flex: 1; min-width: 0; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; color: var(--text); font: inherit; }
+.who-list button.on::after { content: "aktuell"; font-size: .66rem; font-weight: 500; text-transform: uppercase; letter-spacing: .06em; opacity: .8; }
+.who-other { display: flex; gap: 6px; padding-top: 10px; border-top: 1px solid var(--line); }
+.who-other input { flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; color: var(--text); font: inherit; font-size: 16px; }
 .who-other button { border: 1px solid var(--line); background: var(--panel-2); border-radius: 8px; padding: 0 14px; font-weight: 600; }
 
 main { max-width: 1180px; margin: 0 auto; padding: var(--gap) var(--pad); min-height: 70vh; }

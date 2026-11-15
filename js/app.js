@@ -104,6 +104,9 @@ function askPlayer(mandatory) {
     if (mandatory) ev.preventDefault();
   };
   if (!dlg.open) dlg.showModal();
+  // Kein Name soll durch den automatischen Fokus wie ausgewählt aussehen.
+  dlg.tabIndex = -1;
+  dlg.focus();
 }
 
 // ---------- Hilfen ----------
