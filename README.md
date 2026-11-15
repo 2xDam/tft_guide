@@ -48,7 +48,9 @@ veröffentlichte Seite öffentlich einsehbar. Lokal: `RIOT_API_KEY=… npm run m
   „App installieren“, iPhone: Teilen → „Zum Home-Bildschirm“). Ein Service Worker lädt eigene
   Dateien bei jedem Start frisch und zeigt ohne Netz den zuletzt geladenen Stand.
 - Im Modus „Runde für Runde“ wird jede Runde mitgeschrieben und der Verlauf automatisch auf dem
-  Gerät gespeichert. „Spiel beenden“ ergänzt die Platzierung; die Auswertung steht unter
+  Gerät gespeichert. In Kampfrunden schließt „Sieg“ oder „Verl.“ die Runde ab und schreibt Gold
+  (Einkommen), Leben (geschätzter Schaden) und Serie fort; geschätzte Werte sind mit ≈ markiert,
+  bis man sie korrigiert. „Spiel beenden“ ergänzt die Platzierung; die Auswertung steht unter
   Spiele & Analyse → Mitschriften.
 - Favoriten (je Spieler), Freestyle-Auswahl und Mitschriften liegen nur im Browser des jeweiligen Geräts.
 
