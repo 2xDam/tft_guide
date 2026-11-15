@@ -282,6 +282,16 @@ main { max-width: 1180px; margin: 0 auto; padding: var(--gap) var(--pad); min-he
 .round-nav { display: flex; align-items: center; gap: 8px; }
 .round-nav > button { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; height: 40px; padding: 0 12px; font-size: 1.1rem; flex: none; }
 .round-nav .next { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; font-size: .9rem; white-space: nowrap; }
+.round-nav .res { font-weight: 700; font-size: .9rem; padding: 0 10px; white-space: nowrap; }
+.round-nav .res.win { background: rgba(78, 201, 139, .18); border-color: var(--good); color: var(--good); }
+.round-nav .res.loss { background: rgba(239, 107, 107, .15); border-color: var(--bad); color: var(--bad); }
+.stepper.est { border-style: dashed; border-color: var(--accent); }
+.stepper small { white-space: nowrap; }
+.stepper.est small { color: var(--accent); }
+.dmg { display: flex; align-items: center; gap: 4px; margin-top: 6px; }
+.dmg span { font-size: .62rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-right: 2px; }
+.dmg button { flex: 1; min-width: 0; height: 32px; padding: 0; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-2); font-weight: 700; font-size: .85rem; font-variant-numeric: tabular-nums; }
+.dmg button.on { border-color: var(--bad); color: var(--bad); background: rgba(239, 107, 107, .15); }
 .round-now { display: flex; flex-direction: column; line-height: 1.1; min-width: 0; margin-right: auto; }
 .round-key { font-size: 1.6rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 .round-type { font-size: .66rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); white-space: nowrap; }

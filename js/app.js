@@ -510,15 +510,56 @@ function renderLevels(comp) {
 
 // ---------- Rundensteuerung + Tipps ----------
 function stepper(key, label, min, max, step) {
-  return `<div class="stepper">
+  return `<div class="stepper${game.est?.[key] ? ' est' : ''}">
     <button data-step="${key}" data-d="${-step}" aria-label="${label} verringern">−</button>
-    <label><small>${label}</small>
+    <label><small>${label}${game.est?.[key] ? ' ≈' : ''}</small>
     <input data-field="${key}" type="number" inputmode="numeric" min="${min}" max="${max}" value="${game[key]}"></label>
     <button data-step="${key}" data-d="${step}" aria-label="${label} erhöhen">+</button>
   </div>`;
 }
 
 const STREAKS = { none: 'Keine', win: 'Siege', loss: 'Niederl.' };
+
+// Geschätzter Schaden nach einer Niederlage (Stage-Schaden plus ein paar überlebende Gegner)
+const LOSS_DMG = { 2: 6, 3: 9, 4: 12, 5: 15, 6: 18, 7: 22 };
+const dmgChoices = (d) => [-4, -2, 0, 2, 4, 8].map((o) => d.est + o).filter((n) => n > 0);
+const streakOf = (sc) => (sc >= 2 ? 'win' : sc <= -2 ? 'loss' : 'none');
+const streakCount = () => game.sc ?? ({ win: 3, loss: -3 }[game.streak] || 0);
+const streakGold = (sc) => (Math.abs(sc) >= 6 ? 3 : Math.abs(sc) === 5 ? 2 : Math.abs(sc) >= 3 ? 1 : 0);
+
+// Runde wechseln. Vorwärts in eine neue Runde wird der Stand fortgeschrieben: Einkommen
+// (Basis, Zinsen, Serie, Sieg) aufs Gold, nach einer Niederlage geschätzter Schaden und die
+// Serie. Die Werte sind Schätzungen (≈), bis man sie anfasst. Schon besuchte Runden bekommen
+// beim Blättern ihren mitgeschriebenen Stand zurück.
+function goRound(step, result) {
+  const from = roundIndex(game.stage, game.round);
+  const i = Math.min(ROUNDS.length - 1, Math.max(0, from + step));
+  if (i === from) return;
+  game.stage = ROUNDS[i].s;
+  game.round = ROUNDS[i].n;
+  ui.dmg = null;
+  if (overview()) return;
+  const seen = game.log?.[i];
+  if (!result && seen) {
+    Object.assign(game, { level: seen.l, gold: seen.g, hp: seen.h, streak: seen.s, sc: seen.c ?? ({ win: 3, loss: -3 }[seen.s] || 0), est: {} });
+    return;
+  }
+  const r = ROUNDS[from];
+  if (step < 0 || r.s < 2 || roundType(r) === 'carousel') return;
+  let sc = streakCount();
+  if (result === 'win') sc = sc > 0 ? sc + 1 : 1;
+  else if (result === 'loss') sc = sc < 0 ? sc - 1 : -1;
+  game.sc = sc;
+  game.streak = streakOf(sc);
+  game.gold = Math.min(999, game.gold + 5 + Math.min(5, Math.floor(game.gold / 10)) + (result ? streakGold(sc) : 0) + (result === 'win' ? 1 : 0));
+  game.est = { ...(game.est || {}), gold: true };
+  if (result === 'loss') {
+    const est = LOSS_DMG[Math.min(7, r.s)];
+    ui.dmg = { base: game.hp, est };
+    game.hp = Math.max(1, game.hp - est);
+    game.est.hp = true;
+  }
+}
 
 function renderControl(comp) {
   const ri = roundIndex(game.stage, game.round);
@@ -536,7 +577,10 @@ function renderControl(comp) {
         <span class="round-type ${type}">${TYPE_LABEL[type]}${isAugmentRound(r) ? ' · Augment' : ''}</span>
       </div>
       <button class="soll ${state}" data-setlevel="${target}" title="Level auf ${target} setzen"><small>Soll Lvl ${target}</small><b>${stateText}</b></button>
-      <button class="next" data-round="1" ${ri >= ROUNDS.length - 1 ? 'disabled' : ''}>Weiter ›</button>
+      ${type === 'pvp' && r.s >= 2 && ri < ROUNDS.length - 1
+        ? `<button class="res win" data-round="1" data-result="win" title="Runde gewonnen – weiter">Sieg</button>
+           <button class="res loss" data-round="1" data-result="loss" title="Runde verloren – weiter">Verl.</button>`
+        : `<button class="next" data-round="1" ${ri >= ROUNDS.length - 1 ? 'disabled' : ''}>Weiter ›</button>`}
     </div>
     <div class="inputs">
       ${stepper('level', 'Level', 1, 10, 1)}
@@ -544,6 +588,7 @@ function renderControl(comp) {
       ${stepper('hp', 'Leben', 1, 100, 10)}
       <button class="streak ${game.streak}" data-streak title="Serie umschalten"><small>Serie</small><b>${STREAKS[game.streak]}</b></button>
     </div>
+    ${ui.dmg ? `<div class="dmg"><span>Schaden</span>${dmgChoices(ui.dmg).map((n) => `<button data-dmg="${n}" class="${Math.max(1, ui.dmg.base - n) === game.hp ? 'on' : ''}">−${n}</button>`).join('')}</div>` : ''}
     <div class="endgame">${ui.ending
       ? `<span>Platzierung</span>${[1, 2, 3, 4, 5, 6, 7, 8].map((n) => `<button data-place="${n}">${n}</button>`).join('')}<button class="ghost" data-end="0">Abbrechen</button>`
       : `<span class="hint">${ui.flash ? esc(ui.flash) : `${Object.keys(game.log || {}).length} Runden mitgeschrieben${game.logId ? ' · gespeichert' : ''}`}</span>
@@ -699,6 +744,7 @@ function bindGuide(comp) {
     } else if (d.place) {
       saveMatchLog(comp, Number(d.place));
       game = { ...defaultGame(), compId: comp.id };
+      ui.dmg = null;
       ui.ending = false;
       ui.flash = `Spiel gespeichert (Platz ${d.place}).`;
       ui.boardTab = '';
@@ -707,10 +753,11 @@ function bindGuide(comp) {
       return;
     } else if (d.round) {
       ui.flash = '';
-      const i = Math.min(ROUNDS.length - 1, Math.max(0, roundIndex(game.stage, game.round) + Number(d.round)));
-      game.stage = ROUNDS[i].s;
-      game.round = ROUNDS[i].n;
+      goRound(Number(d.round), d.result);
       ui.boardTab = '';
+    } else if (d.dmg) {
+      game.hp = Math.max(1, ui.dmg.base - Number(d.dmg));
+      delete game.est?.hp;
     } else if (d.mode) {
       mode = d.mode;
       ui.boardTab = '';
@@ -726,8 +773,10 @@ function bindGuide(comp) {
     } else if (d.step) {
       const input = app.querySelector(`[data-field="${d.step}"]`);
       setField(d.step, Number(game[d.step]) + Number(d.d), input);
-    } else if ('streak' in d) game.streak = { none: 'win', win: 'loss', loss: 'none' }[game.streak] || 'none';
-    else if (d.setlevel) {
+    } else if ('streak' in d) {
+      game.streak = { none: 'win', win: 'loss', loss: 'none' }[game.streak] || 'none';
+      game.sc = { win: 3, loss: -3 }[game.streak] || 0;
+    } else if (d.setlevel) {
       game.level = Number(d.setlevel);
       ui.boardTab = '';
     } else if (d.tab) {
@@ -748,6 +797,7 @@ function bindGuide(comp) {
     } else if (d.own) game.owned[d.own] ? delete game.owned[d.own] : (game.owned[d.own] = true);
     else if ('reset' in d) {
       game = { ...defaultGame(), compId: comp.id };
+      ui.dmg = null;
       ui.boardTab = '';
       ui.variant = 0;
     } else return;
@@ -767,6 +817,8 @@ function setField(key, value, input) {
   if (!Number.isFinite(value)) value = game[key];
   const before = game[key];
   game[key] = Math.min(max, Math.max(min, Math.round(value)));
+  delete game.est?.[key];
+  if (key === 'hp') ui.dmg = null;
   if (key === 'level' && before !== game[key]) ui.boardTab = '';
 }
 
@@ -775,7 +827,7 @@ function logRound() {
   if (overview()) return;
   const i = roundIndex(game.stage, game.round);
   game.log ||= {};
-  game.log[i] = { l: game.level, g: game.gold, h: game.hp, s: game.streak };
+  game.log[i] = { l: game.level, g: game.gold, h: game.hp, s: game.streak, c: streakCount() };
 }
 
 // Speichert die Mitschrift. Ohne Platzierung ist es der Zwischenstand des laufenden Spiels,
